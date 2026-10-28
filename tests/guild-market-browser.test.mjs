@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {mergeMarketGuildBanners} from '../public/assets/guild-market-banners.js';
+const id='23d9b7de-38cb-4ae1-9d3f-1bf124b0a34f',b={baseColor:'BLACK',patterns:[{type:'STRIPE_LEFT',color:'YELLOW'}]};
+const owner=(banner=b)=>({owner:{type:'GUILD',id,avatar:{kind:'GUILD_BANNER',banner}}});
+test('joins a real public guild banner by UUID without overwriting known banners',()=>{const source=[{id,name:'Vibe',banner:null},{id:'724e5531-f6e4-4423-9c38-d4a7bec10973',banner:{baseColor:'WHITE',patterns:[]}}];const out=mergeMarketGuildBanners(source,{stalls:[owner()]});assert.deepEqual(out[0].banner,b);assert.equal(source[0].banner,null);assert.deepEqual(out[1].banner,source[1].banner)});
+test('conflicting or invalid public banner data and non-guild owners do not produce banners',()=>{const entries=[{id,banner:null}];for(const stalls of [[owner(),owner({baseColor:'RED',patterns:[]})],[owner({baseColor:'NO',patterns:[]})],[{owner:{type:'PLAYER',id,avatar:{kind:'GUILD_BANNER',banner:b}}}]])assert.equal(mergeMarketGuildBanners(entries,{stalls})[0].banner,null);});

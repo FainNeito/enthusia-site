@@ -1,6 +1,7 @@
 import { api,el,link } from './community-dom.js';
 import { notice,formattedDate } from './exact-markup.js';
 import { playerProfile,playerHead } from './exact-player-profile.js';
+import { mergeMarketGuildBanners } from './guild-market-banners.js';
 const kind=document.body.dataset.exactDirectory,preview=document.documentElement.hasAttribute('data-preview-root');
 const status=document.querySelector('[data-directory-status]');
 const templates=new Map();for(const node of document.querySelectorAll('template[data-design-template]'))templates.set(node.dataset.designTemplate+':'+node.dataset.variant,node);
@@ -92,6 +93,15 @@ async function start(){
     if(kind==='bounties'&&!preview){const live=one('main .live');if(live)live.parentElement.textContent=data.capturedSnapshot?'Captured server snapshot':data.stale?'Outdated server export':data.limited?'Partial server export':'Server export';}
     if(data.limited||data.stale){status.hidden=false;status.textContent=data.limited?(kind==='players'?'Public profiles; leaderboard coverage is partial.':kind==='bounties'?'Public bounty export; coverage may be partial.':'Public guild export. Membership and recruitment details may be incomplete.')+(data.stale?(kind==='players'?' Leaderboard stats are stale.':' The export is stale.'):''):'The last server export is stale.';}
     if(kind==='guilds'){selectGuildLink(requestedGuildId);window.addEventListener('hashchange',()=>selectGuildLink(decodeURIComponent(location.hash.slice(1))));}
+    if(kind==='guilds'&&!preview&&items.some(item=>!item.banner)){
+      const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),5000);
+      fetch('https://market-api.enthusia.info/v1/market',{headers:{Accept:'application/json'},credentials:'omit',signal:controller.signal})
+        .then(response=>{if(!response.ok)throw new Error('market_unavailable');return response.json();})
+        .then(snapshot=>{items=mergeMarketGuildBanners(items,snapshot);draw();if(selected){const current=items.find(item=>item.id===selected.id);if(current)choose(current);}})
+        .catch(()=>{}).finally(()=>clearTimeout(timeout));
+    }
+
+
   }catch(error){status.hidden=false;status.textContent=error.message;for(const live of document.querySelectorAll('main .live'))live.parentElement.hidden=true;if(kind==='bounties')for(const node of document.querySelectorAll('main .stats .stat>b'))node.textContent='Unavailable';}
 }
 start().catch(error=>notice(error.message));

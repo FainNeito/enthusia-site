@@ -53,12 +53,21 @@ function associateDirectory(players,directory,now) {
       if(seen.has(guild.id))return false;seen.add(guild.id);
     }
     if([...associations.values()].some(guilds=>guilds.length>20))return false;
-    for(const [id,player] of players)if(!player.guildsKnown) {
+    for(const [id,player] of players) {
       const guildMemberships=associations.get(id)??[];
       Object.assign(player,{guildsKnown:true,guildMemberships});
     }
     return true;
   } catch {return false;}
+}
+export async function enrichStoredPlayerGuilds(snapshot,env,now=Date.now(),fetchImpl=fetch) {
+  if(!env.GUILDS_DIRECTORY_API_URL||!env.GUILDS_API_BEARER||!Array.isArray(snapshot.items))return snapshot;
+  const directory=await readLiveGuildDirectory(env,fetchImpl);
+  const players=new Map(snapshot.items.filter(player=>UUID.test(player.id)).map(player=>[player.id.toLowerCase(),{...player}]));
+  if(!associateDirectory(players,directory,now))return snapshot;
+  const sourceUpdatedAt=snapshot.sourceUpdatedAt??snapshot.generatedAt??snapshot.updatedAt;
+  return {...snapshot,items:snapshot.items.map(player=>players.get(String(player.id).toLowerCase())??player),
+    sourceUpdatedAt,generatedAt:[snapshot.generatedAt,directory.generatedAt].filter(Boolean).sort().at(-1)};
 }
 export async function readPublicPlayerDirectory(env,now=Date.now(),fetchImpl=fetch) {
   const [playtime,balance]=await Promise.all([
@@ -78,7 +87,7 @@ export async function readPublicPlayerDirectory(env,now=Date.now(),fetchImpl=fet
       for(const row of result.items)Object.assign(players.get(row.id),{guildsKnown:true,guildMemberships:row.guildMemberships});
     }
   }
-  if ([...players.values()].some(player=>!player.guildsKnown) && env.GUILDS_DIRECTORY_API_URL && env.GUILDS_API_BEARER) {
+  if (env.GUILDS_DIRECTORY_API_URL && env.GUILDS_API_BEARER) {
     const directory=await readLiveGuildDirectory(env,fetchImpl);
     if(associateDirectory(players,directory,now))sources.push(directory);
   }

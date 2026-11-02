@@ -36,3 +36,12 @@ test('full guild directory supplies player guilds and leaves incomplete rosters 
   const partial=await readPublicPlayerDirectory(base,now,async()=>Response.json({...payload,entries:[{...payload.entries[0],memberUuids:null}]}));
   assert.equal(partial.items[0].guildsKnown,undefined);
 });
+
+test('fresh authoritative guild capture updates stored profiles without refreshing old player stats',async()=>{
+  const {enrichStoredPlayerGuilds}=await import('../functions/lib/player-directory-source.js');
+  const guild='20000000-0000-4000-8000-000000000002',old=new Date(now-3600000).toISOString();
+  const snapshot={generatedAt:old,items:[{id:a,name:'Player',guildsKnown:true,guildMemberships:[{id:guild,name:'Old'}]}]};
+  const payload={generatedAt:at,directoryRevision:'a'.repeat(64),total:1,offset:0,nextOffset:null,entries:[{id:guild,name:'Current',memberCount:1,memberUuids:[a]}]};
+  const result=await enrichStoredPlayerGuilds(snapshot,{GUILDS_DIRECTORY_API_URL:'https://guilds.example/directory',GUILDS_API_BEARER:'secret'},now,async()=>Response.json(payload));
+  assert.equal(result.items[0].guildMemberships[0].name,'Current');assert.equal(result.sourceUpdatedAt,old);assert.equal(result.generatedAt,at);
+});

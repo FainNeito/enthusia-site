@@ -6,7 +6,7 @@ import { readGuildDirectory } from '../../api/leaderboards/[[path]].js';
 import { readLiveGuildDirectory, readPublicLeaderboardPlayers, resolvePublicGuildMembers } from '../live-guild-directory.js';
 import { publicMarketBanners } from '../guild-banner-source.js';
 import { projectGuildDirectory } from '../guild-directory-source.js';
-import { readPublicPlayerDirectory } from '../player-directory-source.js';
+import { readPublicPlayerDirectory, enrichStoredPlayerGuilds } from '../player-directory-source.js';
 import { readCommunityUpstream } from './upstream.js';
 import { salesStatements,snapshotStatement } from './persistence.js';
 import { topFiveByWeek,consecutiveTopWeeks } from './market-history.js';
@@ -236,14 +236,15 @@ async function alertsRoute(context, parts, dependencies) {
   return saveAlert(db,context.request,actor);
 }
 
-function storedSnapshot(row,kind){
-  const snapshot=projectSnapshot(kind,JSON.parse(row.payload));
+async function storedSnapshot(row,kind,env){
+  let snapshot=projectSnapshot(kind,JSON.parse(row.payload));
+  if(kind==='players') snapshot=await enrichStoredPlayerGuilds({...snapshot,updatedAt:row.updated_at},env);
   return json({...snapshot,updatedAt:row.updated_at,
     stale:Date.now()-Date.parse(snapshot.sourceUpdatedAt??snapshot.generatedAt??row.updated_at)>900000});
 }
 async function snapshotRoute(db, kind, env) {
   const row = await db.prepare('SELECT payload,updated_at FROM community_snapshots WHERE kind=?').bind(kind).first();
-  if (row) return storedSnapshot(row,kind);
+  if (row) return storedSnapshot(row,kind,env);
   const upstream=await readCommunityUpstream(kind,env);
   if(upstream)return json(upstream);
   if (kind==='players') {

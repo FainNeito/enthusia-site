@@ -1,4 +1,4 @@
-import { isWarning, punishmentReason, punishmentStatus, punishmentDuration } from "./punishment-presentation.js?v=1";
+import { isWarning, punishmentReason, punishmentStatus, punishmentEnd } from "./punishment-presentation.js?v=2";
 
 export function exactPunishmentCard(item, date, appealHref = null) {
   const preview = document.documentElement.hasAttribute("data-preview-root");
@@ -7,6 +7,19 @@ export function exactPunishmentCard(item, date, appealHref = null) {
   node.classList.add("punishment-record-card");
   if (preview && item.designIndex !== undefined) { node.querySelector("a")?.remove(); return node; }
   node.removeAttribute("data-b-class");
+  const top = node.firstElementChild, identity = top.firstElementChild;
+  top.classList.add("punishment-card-heading");
+  identity.classList.add("punishment-card-identity");
+  const head = document.createElement("img");
+  head.className = "punishment-player-head";
+  head.alt = "";
+  head.width = 48; head.height = 48; head.loading = "lazy";
+  const fallback = new URL("./market/player-head-base.svg", import.meta.url).href;
+  head.src = /^[A-Za-z0-9_]{3,16}$/.test(item.player || "") ? "https://mc-heads.net/avatar/" + encodeURIComponent(item.player) + "/48" : fallback;
+  head.addEventListener("error", () => { head.src = fallback; }, { once: true });
+  const person = document.createElement("div");
+  person.className = "punishment-player";
+  identity.replaceWith(person); person.append(head, identity);
   node.querySelector("h2").textContent = item.player || "Unknown player";
   node.querySelector("div>div>p").textContent = isWarning(item) ? "Warning" : item.punishmentType || "Punishment";
   const state = node.querySelector(".tag");
@@ -14,7 +27,9 @@ export function exactPunishmentCard(item, date, appealHref = null) {
   state.className = "tag " + (!isWarning(item) && item.state === "ACTIVE" ? "tag-red" : "tag-plain");
   node.querySelector(":scope>p").textContent = punishmentReason(item);
   const values = [["Issued", date(item.issuedAt)]];
-  if (!isWarning(item)) values.push(["Duration", punishmentDuration(item)]);
+  values.push(["Issued by", item.issuedBy || "Unavailable"]);
+  const end = punishmentEnd(item);
+  values.push([end.label, end.value]);
   const meta = node.querySelector("dl");
   meta.replaceChildren();
   for (const [label, value] of values) {

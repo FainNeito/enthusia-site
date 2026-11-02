@@ -40,3 +40,14 @@ test("account punishment links stay on the public page and encode their search t
   assert.equal(target.pathname, "/punishments.html");
   assert.equal(target.searchParams.get("q"), "../other?x=1");
 });
+
+test("end dates show time and timezone, and distinguish permanent or removed punishments", async () => {
+  const { punishmentEnd } = await import("../public/assets/punishment-presentation.js");
+  const timed=punishmentEnd({punishmentType:"BAN",state:"ACTIVE",expiresAt:"2026-12-10T18:30:00Z"},"en-US");
+  assert.equal(timed.label,"Ends");assert.match(timed.value,/Dec 10, 2026/);assert.match(timed.value,/\d:\d{2}/);assert.notEqual(timed.value,"Unavailable");
+  assert.equal(punishmentEnd({punishmentType:"BAN",state:"ACTIVE",expiresAt:null}).value,"Never (permanent)");
+  assert.equal(punishmentEnd({punishmentType:"BAN",state:"REVOKED",expiresAt:null}).value,"Time unavailable");
+  assert.equal(punishmentEnd({punishmentType:"MUTE",state:"REVOKED",expiresAt:"2026-12-10T18:30:00Z"}).label,"Scheduled end");
+  assert.equal(punishmentEnd({punishmentType:"WARNING",expiresAt:null}).value,"Not applicable");
+  assert.equal(punishmentEnd({punishmentType:"BAN",expiresAt:"invalid"}).value,"Unavailable");
+});

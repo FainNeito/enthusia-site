@@ -87,3 +87,9 @@ test("public collections fail closed on malformed records or cursors", () => {
   assert.equal(sanitizePublicPunishmentCollection({ items: [{ ...PUBLIC_PUNISHMENT, player: "bad name" }] }), null);
   assert.equal(sanitizePublicPunishmentCollection({ items: [PUBLIC_PUNISHMENT], nextCursor: "../bad" }, true), null);
 });
+
+test("only an explicitly public valid issuer name is added to punishment projections", () => {
+  assert.equal(sanitizePublicPunishment({...PUBLIC_PUNISHMENT,issuedBy:"StaffName",staffNotes:"private"}).issuedBy,"StaffName");
+  assert.equal(sanitizePublicPunishment({...PUBLIC_PUNISHMENT,issuedBy:"bad name"}).issuedBy,undefined);
+  assert.equal(sanitizePublicPunishment({...PUBLIC_PUNISHMENT,actorName:"HiddenStaff"}).issuedBy,undefined);
+});

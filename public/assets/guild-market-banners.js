@@ -1,5 +1,5 @@
 const DYES=new Set(['WHITE','ORANGE','MAGENTA','LIGHT_BLUE','YELLOW','LIME','PINK','GRAY','LIGHT_GRAY','CYAN','PURPLE','BLUE','BROWN','GREEN','RED','BLACK']);
-const uuid=value=>typeof value==='string'&&/^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(value)?value.toLowerCase().replaceAll('-',''):null;
+const uuid=value=>typeof value==='string'&&/^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(value)?value.toLowerCase().replace(/-/g,''):null;
 function validBanner(value){
  if(!value||!DYES.has(value.baseColor)||!Array.isArray(value.patterns)||value.patterns.length>20)return null;
  if(!value.patterns.every(p=>p&&DYES.has(p.color)&&typeof p.type==='string'&&/^[A-Z_]{1,40}$/.test(p.type)))return null;

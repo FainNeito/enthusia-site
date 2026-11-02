@@ -1,6 +1,6 @@
 import { loadOwnedPunishmentAppeals, ownedPunishmentAppealLink } from "./punishment-appeal-links.js?v=2";
-import { exactPunishmentCard } from './exact-punishments.js?v=4';
-import { isWarning, punishmentReason, punishmentStatus, punishmentDuration } from './punishment-presentation.js?v=1';
+import { exactPunishmentCard } from './exact-punishments.js?v=5';
+import { punishmentReason, punishmentStatus, punishmentEnd } from './punishment-presentation.js?v=2';
 const resultsRoot = document.querySelector("#punishment-results");
 const summary = document.querySelector("#punishment-summary");
 const form = document.querySelector("#punishment-search");
@@ -47,7 +47,9 @@ function punishmentCard(item) {
   const meta = document.createElement("dl");
   meta.className = "punishment-meta";
   const values = [["Issued", date(item.issuedAt)]];
-  if (!isWarning(item)) values.push(["Duration", punishmentDuration(item)]);
+  values.push(["Issued by", item.issuedBy || "Unavailable"]);
+  const end = punishmentEnd(item);
+  values.push([end.label, end.value]);
   for (const [label, value] of values) {
     const group = document.createElement("div");
     const term = document.createElement("dt");

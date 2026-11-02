@@ -34,3 +34,21 @@ export function punishmentDuration(item) {
 export function publicPunishmentLink(item) {
   return `/punishments.html?${new URLSearchParams({ q: item.caseId || item.minecraftName || item.player || "" })}`;
 }
+
+export function punishmentEnd(item, locale) {
+  if (isWarning(item)) return { label: "Ends", value: "Not applicable" };
+  const removed = ["REVOKED", "OVERTURNED"].includes(item.state);
+  const actualEnd = removed ? Date.parse(item.endedAt) : NaN;
+  if (removed && Number.isFinite(actualEnd)) return { label: "Ended", value: formatEnd(actualEnd, locale) };
+  if (item.expiresAt === null) return missingExpiration(removed);
+  const timestamp = Date.parse(item.expiresAt);
+  const label = removed ? "Scheduled end" : "Ends";
+  if (!Number.isFinite(timestamp)) return { label, value: "Unavailable" };
+  return { label, value: formatEnd(timestamp, locale) };
+}
+function missingExpiration(removed) {
+  return removed ? { label: "Ended", value: "Time unavailable" } : { label: "Ends", value: "Never (permanent)" };
+}
+function formatEnd(timestamp, locale) {
+  return new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(timestamp);
+}

@@ -96,7 +96,7 @@ function previewApi(url) {
     const values=[punishment,
       {...punishment,player:'BuilderTwo',punishmentType:'BAN',expiresAt:null,issuedBy:'PreviewStaff',caseId:'01K0000000000001'},
       {...punishment,player:'Mapartist',punishmentType:'WARNING',expiresAt:null,issuedBy:undefined,appealAvailable:false,caseId:'01K0000000000002'},
-      {...punishment,player:'PreviewPlayer',punishmentType:'BAN',state:'REVOKED',appealAvailable:false,caseId:'01K0000000000003'}];
+      {...punishment,player:'PreviewPlayer',punishmentType:'BAN',state:'REVOKED',endedAt:'2026-11-01T12:00:00Z',appealAvailable:false,caseId:'01K0000000000003'}];
     const q=(url.searchParams.get('q')||'').toLowerCase(),type=url.searchParams.get('type')||'ALL';
     return json({items:values.filter(row=>(type==='ALL'||row.punishmentType===type)&&(!q||row.player.toLowerCase().includes(q)||row.caseId.toLowerCase()===q)),nextCursor:null});
   }

@@ -92,4 +92,6 @@ test("only an explicitly public valid issuer name is added to punishment project
   assert.equal(sanitizePublicPunishment({...PUBLIC_PUNISHMENT,issuedBy:"StaffName",staffNotes:"private"}).issuedBy,"StaffName");
   assert.equal(sanitizePublicPunishment({...PUBLIC_PUNISHMENT,issuedBy:"bad name"}).issuedBy,undefined);
   assert.equal(sanitizePublicPunishment({...PUBLIC_PUNISHMENT,actorName:"HiddenStaff"}).issuedBy,undefined);
+  assert.equal(sanitizePublicPunishment({...PUBLIC_PUNISHMENT,endedAt:"2026-09-03T12:00:00Z"}).endedAt,"2026-09-03T12:00:00Z");
+  assert.equal(sanitizePublicPunishment({...PUBLIC_PUNISHMENT,endedAt:"invalid"}).endedAt,undefined);
 });

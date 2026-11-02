@@ -56,7 +56,8 @@ function publicPunishmentFields(value) {
     state,
     caseId,
     appealAvailable: value.appealAvailable,
-    ...(PLAYER.test(value.issuedBy ?? "") ? { issuedBy: value.issuedBy } : {})
+    ...(PLAYER.test(value.issuedBy ?? "") ? { issuedBy: value.issuedBy } : {}),
+    ...(instant(value.endedAt) ? { endedAt: instant(value.endedAt) } : {})
   };
 }
 

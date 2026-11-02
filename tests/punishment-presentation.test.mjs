@@ -48,6 +48,8 @@ test("end dates show time and timezone, and distinguish permanent or removed pun
   assert.equal(punishmentEnd({punishmentType:"BAN",state:"ACTIVE",expiresAt:null}).value,"Never (permanent)");
   assert.equal(punishmentEnd({punishmentType:"BAN",state:"REVOKED",expiresAt:null}).value,"Time unavailable");
   assert.equal(punishmentEnd({punishmentType:"MUTE",state:"REVOKED",expiresAt:"2026-12-10T18:30:00Z"}).label,"Scheduled end");
+  const removed=punishmentEnd({punishmentType:"BAN",state:"REVOKED",expiresAt:null,endedAt:"2026-12-01T12:00:00Z"},"en-US");
+  assert.equal(removed.label,"Ended");assert.match(removed.value,/Dec 1, 2026/);
   assert.equal(punishmentEnd({punishmentType:"WARNING",expiresAt:null}).value,"Not applicable");
   assert.equal(punishmentEnd({punishmentType:"BAN",expiresAt:"invalid"}).value,"Unavailable");
 });

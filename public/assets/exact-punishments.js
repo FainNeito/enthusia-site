@@ -15,7 +15,7 @@ export function exactPunishmentCard(item, date, appealHref = null) {
   head.alt = "";
   head.width = 48; head.height = 48; head.loading = "lazy";
   const fallback = new URL("./market/player-head-base.svg", import.meta.url).href;
-  head.src = /^[A-Za-z0-9_]{3,16}$/.test(item.player || "") ? "https://mc-heads.net/avatar/" + encodeURIComponent(item.player) + "/48" : fallback;
+  head.src = item.player ? "https://mc-heads.net/avatar/" + encodeURIComponent(item.player) + "/48" : fallback;
   head.addEventListener("error", () => { head.src = fallback; }, { once: true });
   const person = document.createElement("div");
   person.className = "punishment-player";

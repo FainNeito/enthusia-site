@@ -37,10 +37,16 @@ export function publicPunishmentLink(item) {
 
 export function punishmentEnd(item, locale) {
   if (isWarning(item)) return { label: "Ends", value: "Not applicable" };
-  if (item.expiresAt === null) return ["REVOKED", "OVERTURNED"].includes(item.state)
+  const removed = ["REVOKED", "OVERTURNED"].includes(item.state);
+  const actualEnd = removed ? Date.parse(item.endedAt || "") : NaN;
+  if (removed && Number.isFinite(actualEnd)) return { label: "Ended", value: formatEnd(actualEnd, locale) };
+  if (item.expiresAt === null) return removed
     ? { label: "Ended", value: "Time unavailable" } : { label: "Ends", value: "Never (permanent)" };
   const timestamp = Date.parse(item.expiresAt || "");
-  const label = ["REVOKED", "OVERTURNED"].includes(item.state) ? "Scheduled end" : "Ends";
+  const label = removed ? "Scheduled end" : "Ends";
   if (!Number.isFinite(timestamp)) return { label, value: "Unavailable" };
-  return { label, value: new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(timestamp) };
+  return { label, value: formatEnd(timestamp, locale) };
+}
+function formatEnd(timestamp, locale) {
+  return new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(timestamp);
 }

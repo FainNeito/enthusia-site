@@ -3,6 +3,8 @@ import { getCompetitionIdentitySession } from '../competitions/identity.js';
 import { requireSameOrigin } from '../security.js';
 import { json } from '../responses.js';
 import { readGuildDirectory } from '../../api/leaderboards/[[path]].js';
+import { readLiveGuildDirectory, readPublicLeaderboardPlayers, resolvePublicGuildMembers } from '../live-guild-directory.js';
+import { publicMarketBanners } from '../guild-banner-source.js';
 import { projectGuildDirectory } from '../guild-directory-source.js';
 import { readPublicPlayerDirectory } from '../player-directory-source.js';
 import { readCommunityUpstream } from './upstream.js';
@@ -132,17 +134,47 @@ async function guildFallback(context, db) {
   let snapshot = null;
   try { snapshot = db ? await db.prepare("SELECT payload,updated_at FROM community_snapshots WHERE kind='guilds'").first() : null; }
   catch { /* Guild rankings can operate without the community database. */ }
-  if (snapshot) return null;
-  const upstream=await readCommunityUpstream('guilds',context.env);
-  if(upstream)return json(upstream);
+  let snapshotTime = null;
+  if (snapshot) {
+    try { snapshotTime = Date.parse(JSON.parse(snapshot.payload).generatedAt ?? snapshot.updated_at); }
+    catch { snapshotTime = NaN; }
+
+  }
   try {
+    const full = await readLiveGuildDirectory(context.env);
+    if (full && (!snapshot || !Number.isFinite(snapshotTime) || Date.parse(full.generatedAt)>snapshotTime)) {
+      let players=[];
+      try {
+        const playerSnapshot=db ? await db.prepare("SELECT payload,updated_at FROM community_snapshots WHERE kind='players'").first() : null;
+        if (playerSnapshot) {
+          const payload=JSON.parse(playerSnapshot.payload), sourceTime=Date.parse(payload.generatedAt??playerSnapshot.updated_at);
+          if (Number.isFinite(sourceTime) && sourceTime<=Date.now()+300000 && Date.now()-sourceTime<=900000) players=projectSnapshot('players',payload).items;
+        }
+      } catch { /* Missing player names must not prevent the guild directory from loading. */ }
+      const knownIds=new Set(players.map(player=>player.id.toLowerCase()));
+      const needsMoreNames=full.entries.some(entry=>Array.isArray(entry.memberUuids) &&
+        entry.memberUuids.some(id=>typeof id==='string' && !knownIds.has(id.toLowerCase())));
+      if (needsMoreNames) players=players.concat(await readPublicLeaderboardPlayers());
+      try {
+        const decorated=await publicMarketBanners(resolvePublicGuildMembers(full,players));
+        return json({...projectGuildDirectory(decorated),updatedAt:full.generatedAt,limited:false,
+          stale:Date.now()-Date.parse(full.generatedAt)>900000});
+      } catch { /* A malformed optional directory must not suppress the existing leaderboard. */ }
+    }
+    if (snapshot && Number.isFinite(snapshotTime) && snapshotTime <= Date.now() + 300000 && Date.now() - snapshotTime <= 900000) return null;
+    const upstream=await readCommunityUpstream('guilds',context.env);
+    const upstreamTime=Date.parse(upstream?.generatedAt??upstream?.updatedAt);
+    if(upstream && (!snapshot || (Number.isFinite(upstreamTime) && (!Number.isFinite(snapshotTime) || upstreamTime>snapshotTime)))) return json(upstream);
     const response = await readGuildDirectory(context.env);
-    if (!response.ok) return unavailable();
+    if (!response.ok) return snapshot ? null : unavailable();
     const data = await response.json();
-    if (!Array.isArray(data.entries)) return unavailable();
+    if (!Array.isArray(data.entries)) return snapshot ? null : unavailable();
+    const liveTime = Date.parse(data.generatedAt);
+    // A limited leaderboard cannot replace a full snapshot unless it is demonstrably newer.
+    if (snapshot && (!Number.isFinite(liveTime) || (Number.isFinite(snapshotTime) && liveTime <= snapshotTime))) return null;
     return json({...projectGuildDirectory(data),updatedAt:data.generatedAt??null,limited:true,
       stale:data.generatedAt ? Date.now()-Date.parse(data.generatedAt)>900000 : true});
-  } catch { return unavailable(); }
+  } catch { return snapshot ? null : unavailable(); }
 }
 
 const notFound = () => json({error:'not_found'},404);

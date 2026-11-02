@@ -1,5 +1,7 @@
 import { projectSnapshot } from './community/contracts.js';
 import {readPlayerGuildMemberships} from './community/upstream.js';
+import {readLiveGuildDirectory} from './live-guild-directory.js';
+import {projectGuildDirectory} from './guild-directory-source.js';
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const NAME=/^[A-Za-z0-9_. -]{1,40}$/;
 const metric=value=>Number.isFinite(value)&&value>=0&&value<=1e12?value:null;
@@ -36,6 +38,28 @@ function mergeBoard(map,data,type) {
     map.set(player.id,current);
   }
 }
+function associateDirectory(players,directory,now) {
+  const time=Date.parse(directory?.generatedAt);
+  if(!Number.isFinite(time)||time>now+60000||now-time>900000||!Array.isArray(directory.entries))return false;
+  const seen=new Set(),associations=new Map();
+  try {
+    const projected=projectGuildDirectory(directory).items;
+    if(projected.length!==directory.entries.length)return false;
+    for(let i=0;i<directory.entries.length;i++) {
+      const entry=directory.entries[i], guild=projected[i], ids=entry.memberUuids;
+      if(!guild||!Array.isArray(ids)||ids.length!==entry.memberCount||ids.length>200||ids.some(id=>typeof id!=='string'||!UUID.test(id)))return false;
+      const local=new Set(ids.map(id=>id.toLowerCase()));if(local.size!==ids.length)return false;
+      for(const id of local) {if(!associations.has(id))associations.set(id,[]);associations.get(id).push({id:guild.id,name:guild.name,level:guild.level,banner:guild.banner});}
+      if(seen.has(guild.id))return false;seen.add(guild.id);
+    }
+    if([...associations.values()].some(guilds=>guilds.length>20))return false;
+    for(const [id,player] of players)if(!player.guildsKnown) {
+      const guildMemberships=associations.get(id)??[];
+      Object.assign(player,{guildsKnown:true,guildMemberships});
+    }
+    return true;
+  } catch {return false;}
+}
 export async function readPublicPlayerDirectory(env,now=Date.now(),fetchImpl=fetch) {
   const [playtime,balance]=await Promise.all([
     board(env.PLAYTIME_LEADERBOARDS,'leaderboards/playtime-active-all.json',now),
@@ -53,6 +77,10 @@ export async function readPublicPlayerDirectory(env,now=Date.now(),fetchImpl=fet
       sources.push(result);
       for(const row of result.items)Object.assign(players.get(row.id),{guildsKnown:true,guildMemberships:row.guildMemberships});
     }
+  }
+  if ([...players.values()].some(player=>!player.guildsKnown) && env.GUILDS_DIRECTORY_API_URL && env.GUILDS_API_BEARER) {
+    const directory=await readLiveGuildDirectory(env,fetchImpl);
+    if(associateDirectory(players,directory,now))sources.push(directory);
   }
   const updatedAt=sources.map(source=>source.generatedAt).sort()[0];
   return {...projectSnapshot('players',{items:[...players.values()].slice(0,1000)}),

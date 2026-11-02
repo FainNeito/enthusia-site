@@ -1,10 +1,10 @@
 import { competitionPlayerContext } from "./bridge.js";
 import { getCompetitionIdentitySession } from "./identity.js";
+import { isNetworkAccountName } from "./network-accounts.js";
 import { isCanonicalUuid } from "../validation.js";
 
 const MAX_LINKED_ACCOUNTS = 16;
 const MEMBERSHIP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-const PLAYER_NAME = /^[A-Za-z0-9_]{1,16}$/;
 
 function rawLinks(session) {
   if (!session || !Array.isArray(session.linkedMinecraftAccounts)) return [];
@@ -15,7 +15,7 @@ function normalizedLink(raw) {
   const source = raw && typeof raw === "object" ? raw : {};
   const uuid = String(source.uuid ?? "").trim().toLowerCase();
   const name = String(source.name ?? "").trim();
-  if (!isCanonicalUuid(uuid) || !PLAYER_NAME.test(name)) return null;
+  if (!isCanonicalUuid(uuid) || !isNetworkAccountName(name)) return null;
   return { uuid, name };
 }
 

@@ -9,6 +9,7 @@ import { authorizeCompetitionRead } from "../../../lib/competitions/public-acces
 import { getPublicCompetitionBySlug } from "../../../lib/competitions/repository.js";
 import { json, methodNotAllowed, unauthorized } from "../../../lib/responses.js";
 import { isCanonicalUuid } from "../../../lib/validation.js";
+import { isNetworkAccountName } from "../../../lib/competitions/network-accounts.js";
 
 function slugValue(context) {
   const value = typeof context?.params?.slug === "string" ? context.params.slug.trim().toLowerCase() : "";
@@ -33,7 +34,7 @@ function listValue(value) {
 function addAccount(accounts, uuidValue, nameValue) {
   const uuid = String(uuidValue ?? "").trim().toLowerCase();
   const name = String(nameValue ?? "").trim();
-  if (isCanonicalUuid(uuid) && /^[A-Za-z0-9_]{1,16}$/.test(name)) {
+  if (isCanonicalUuid(uuid) && isNetworkAccountName(name)) {
     accounts.set(uuid, name);
   }
 }

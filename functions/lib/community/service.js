@@ -302,6 +302,12 @@ export async function handleCommunity(context,dependencies={editor,identity}) {
     const fallback = await guildFallback(context,db);
     if (fallback) return fallback;
   }
+  if (!db && request.method==='GET' && parts.length===1 && parts[0]==='players') {
+    const upstream=await readCommunityUpstream('players',env);
+    if(upstream)return json(upstream);
+    const data=await readPublicPlayerDirectory(env);
+    return data?json(data):unavailable();
+  }
   if (!db) return unavailable();
   try { return await routeCommunity(context,parts,dependencies); }
   catch (error) { return requestError(error); }

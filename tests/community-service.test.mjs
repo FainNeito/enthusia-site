@@ -246,3 +246,11 @@ test('market alerts use the dedicated website notification token before legacy c
  assert.equal((await dispatchAlerts({COMMUNITY_DB:db,MARKET_ALERTS_ENABLED:'true',ENTHUSIA_SITE_DISCORD_BOT_TOKEN:'dedicated-test-token',DISCORD_BOT_TOKEN:'legacy-test-token'},send)).sent,1);
  assert.equal(messages,1);
 });
+test('public player boards remain available without the optional community database',async()=>{
+  const id='10000000-0000-4000-8000-000000000001';
+  const data={generatedAt:new Date().toISOString(),players:[{uuid:id,username:'Player',value:9}]};
+  const env={BALANCE_LEADERBOARDS:{get:async()=>({json:async()=>data})}};
+  const response=await request(null,'players','GET',undefined,{env});
+  assert.equal(response.status,200);const result=await response.json();assert.equal(result.items[0].name,'Player');assert.equal(result.limited,true);
+  assert.equal((await request(null,'news')).status,503);
+});

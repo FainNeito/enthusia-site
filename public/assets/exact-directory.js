@@ -1,5 +1,6 @@
 import { api,el,link } from './community-dom.js';
 import { notice,formattedDate } from './exact-markup.js';
+import { mergeMarketGuildBanners } from './guild-market-banners.js';
 const kind=document.body.dataset.exactDirectory,preview=document.documentElement.hasAttribute('data-preview-root');
 const status=document.querySelector('[data-directory-status]');
 const templates=new Map();for(const node of document.querySelectorAll('template[data-design-template]'))templates.set(node.dataset.designTemplate+':'+node.dataset.variant,node);
@@ -90,6 +91,14 @@ async function start(){
     draw();if(kind==='players'&&items.length)choose(items.find(item=>item.id===decodeURIComponent(location.hash.slice(1)))??items[0]);
     if(kind==='bounties'){const open=items.filter(v=>v.state==='open');const values=[open.length,open.reduce((sum,item)=>sum+(item.gold??0),0).toLocaleString('en-US'),Math.max(0,...open.map(item=>item.gold??0)).toLocaleString('en-US'),preview?items.filter(v=>v.state==='claimed').length:'Unavailable'];document.querySelectorAll('main .stats .stat>b').forEach((node,i)=>node.textContent=values[i]??'Unavailable');}
     if(data.limited||data.stale){status.hidden=false;status.textContent=data.limited?'Only leaderboard guilds are available here. Full guild profiles and recruitment details are not connected yet.':'The last server export is stale.';}
+    if(kind==='guilds'&&!preview&&items.some(item=>!item.banner)){
+      const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),5000);
+      fetch('https://market-api.enthusia.info/v1/market',{headers:{Accept:'application/json'},credentials:'omit',signal:controller.signal})
+        .then(response=>{if(!response.ok)throw new Error('market_unavailable');return response.json();})
+        .then(snapshot=>{items=mergeMarketGuildBanners(items,snapshot);draw();if(selected){const current=items.find(item=>item.id===selected.id);if(current)choose(current);}})
+        .catch(()=>{}).finally(()=>clearTimeout(timeout));
+    }
+
   }catch(error){status.hidden=false;status.textContent=error.message;for(const live of document.querySelectorAll('main .live'))live.parentElement.hidden=true;if(kind==='bounties')for(const node of document.querySelectorAll('main .stats .stat>b'))node.textContent='Unavailable';}
 }
 start().catch(error=>notice(error.message));

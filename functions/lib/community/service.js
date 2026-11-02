@@ -138,7 +138,7 @@ async function guildFallback(context, db) {
   if (snapshot) {
     try { snapshotTime = Date.parse(JSON.parse(snapshot.payload).generatedAt ?? snapshot.updated_at); }
     catch { snapshotTime = NaN; }
-
+    if (snapshotTime > Date.now() + 300000) snapshotTime = NaN;
   }
   try {
     const full = await readLiveGuildDirectory(context.env);
@@ -239,8 +239,9 @@ async function alertsRoute(context, parts, dependencies) {
 async function storedSnapshot(row,kind,env){
   let snapshot=projectSnapshot(kind,JSON.parse(row.payload));
   if(kind==='players') snapshot=await enrichStoredPlayerGuilds({...snapshot,updatedAt:row.updated_at},env);
+  const sourceTime=Date.parse(snapshot.sourceUpdatedAt??snapshot.generatedAt??row.updated_at);
   return json({...snapshot,updatedAt:row.updated_at,
-    stale:Date.now()-Date.parse(snapshot.sourceUpdatedAt??snapshot.generatedAt??row.updated_at)>900000});
+    stale:!Number.isFinite(sourceTime)||sourceTime>Date.now()+300000||Date.now()-sourceTime>900000});
 }
 async function snapshotRoute(db, kind, env) {
   const row = await db.prepare('SELECT payload,updated_at FROM community_snapshots WHERE kind=?').bind(kind).first();

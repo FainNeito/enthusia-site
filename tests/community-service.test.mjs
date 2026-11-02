@@ -145,6 +145,12 @@ test('stale guild snapshots yield only to a newer live leaderboard and survive u
     sql.prepare('UPDATE community_snapshots SET updated_at=? WHERE kind=?').run(recent,'guilds');
     globalThis.fetch=async()=>{throw new Error('fresh snapshots should not fetch');};
     data=await (await request(db,'guilds')).json();assert.equal(data.items[0].name,'Old guild');assert.equal(data.stale,false);
+    const future=new Date(Date.now()+86400000).toISOString();
+    sql.prepare('UPDATE community_snapshots SET updated_at=? WHERE kind=?').run(future,'guilds');
+    globalThis.fetch=async url=>String(url).includes('market-api')?Response.json({stalls:[]}):Response.json({generatedAt:recent,entries:[{id:'guild-1',name:'Live guild'}]});
+    data=await (await request(db,'guilds')).json();assert.equal(data.items[0].name,'Live guild');
+    globalThis.fetch=async()=>{throw new Error('unavailable');};
+    data=await (await request(db,'guilds')).json();assert.equal(data.stale,true);
     assert.ok(calls>0);
   } finally {globalThis.fetch=savedFetch;sql.close();}
 });

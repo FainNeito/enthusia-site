@@ -27,8 +27,10 @@ function validDirectoryPage(data,state){
 }
 function collectDirectoryEntries(data,state){
   for(const entry of data.entries){
-    if(!entry||typeof entry.id!=='string'||state.ids.has(entry.id))return false;
-    state.ids.add(entry.id);state.entries.push(entry);
+    if(!entry||typeof entry.id!=='string')return false;
+    const id=entry.id.toLowerCase();
+    if(state.ids.has(id))return false;
+    state.ids.add(id);state.entries.push(entry);
   }
   return true;
 }

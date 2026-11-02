@@ -25,6 +25,7 @@ test('rejects changed revisions, duplicate identities, malformed paging, errors 
     {...last,directoryRevision:'b'.repeat(64)},
     {...last,generatedAt:'2026-01-01T00:00:01Z'},
     {...last,entries:[entry('a')]},
+    {...last,entries:[entry('A')]},
     {...last,total:3},
     {...last,offset:2},
     {...last,nextOffset:2},

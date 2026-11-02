@@ -1,5 +1,6 @@
 import { api,el } from './community-dom.js';
 import { renderMarkup,formattedDate,notice } from './exact-markup.js';
+import { orderNewsPosts } from './news-order.js';
 const page=document.body.dataset.exactPage;
 const one=selector=>document.querySelector(selector);
 const text=(selector,value)=>{const node=one(selector);if(node)node.textContent=value??'';};
@@ -7,7 +8,7 @@ const tags=new Map([['Announcement','tag-red'],['Changelog','tag-dark'],['Event'
 function clearBindings(node){for(const child of [node,...node.querySelectorAll('*')])for(const attr of [...child.attributes])if(attr.name.startsWith('data-b-')||attr.name.startsWith('data-on-'))child.removeAttribute(attr.name);return node;}
 function author(record){const image=document.querySelector('[data-author-name]')?.parentElement?.querySelector('img');if(image&&!document.documentElement.hasAttribute('data-preview-root')){image.hidden=!record.authorName;if(record.authorName)image.src='https://minotar.net/helm/'+encodeURIComponent(record.authorName)+'/40';}text('[data-author-name]',record.authorName??'Staff');text('[data-author-rank]',record.authorRank??'Staff');}
 async function reader(){
-  const template=one('#news-row-template'),panel=one('article.panel.swap'),list=template.parentElement.firstElementChild;let posts=[],selected=null,category='All';
+  const template=one('#news-row-template'),panel=one('article.panel.swap'),list=template.parentElement.firstElementChild;let posts=[],selected=null,category='All',order='newest';
   const feedback=el('p',{class:'exact-status',role:'status',text:'Loading posts...'});list.append(feedback);panel.hidden=true;
   function choose(post){
     selected=post;panel.hidden=false;
@@ -18,7 +19,7 @@ async function reader(){
     history.replaceState(null,'','#'+encodeURIComponent(post.slug));
   }
   function draw(){
-    const items=posts.filter(post=>category==='All'||post.category===category);
+    const items=orderNewsPosts(posts.filter(post=>category==='All'||post.category===category),order);
     list.replaceChildren(...items.map(post=>{
       const row=clearBindings(template.content.firstElementChild.cloneNode(true));row.className='postbtn';row.dataset.slug=post.slug;row.setAttribute('aria-pressed',String(selected?.slug===post.slug));
       row.children[0].className='tag '+(tags.get(post.category)??'tag-dark');row.children[0].textContent=post.category;row.children[1].textContent=post.title;row.children[2].textContent=formattedDate(post.date)+' - '+(post.authorName??'Staff');
@@ -28,6 +29,7 @@ async function reader(){
     else if(!items.some(post=>post.slug===selected?.slug))choose(items[0]);
   }
   for(const node of document.querySelectorAll('[data-on-click^="pickK"]'))node.addEventListener('click',()=>{category=node.dataset.onClick.slice(5);for(const button of node.parentElement.children)button.setAttribute('aria-pressed',String(button===node));draw();});
+  for(const button of document.querySelectorAll('[data-news-order]'))button.addEventListener('click',()=>{order=button.dataset.newsOrder;for(const peer of document.querySelectorAll('[data-news-order]'))peer.setAttribute('aria-pressed',String(peer===button));draw();});
   one('[data-on-click="pickKAll"]').setAttribute('aria-pressed','true');
   const copy=[...panel.querySelectorAll('button')].find(node=>node.textContent.includes('Copy link'));copy?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(new URL('#'+encodeURIComponent(selected.slug),location.href).href);notice('Post link copied.');}catch{notice('Copy the address from your browser.');}});
   try{posts=(await api('news')).items;selected=posts.find(post=>post.slug===decodeURIComponent(location.hash.slice(1)))??null;draw();if(selected)choose(selected);}catch(error){feedback.textContent=error.message;}

@@ -38,30 +38,43 @@ function mergeBoard(map,data,type) {
     map.set(player.id,current);
   }
 }
-function associateDirectory(players,directory,now) {
+function validDirectoryCapture(directory,now){
   const time=Date.parse(directory?.generatedAt);
-  if(!Number.isFinite(time)||time>now+60000||now-time>900000||!Array.isArray(directory.entries))return false;
+  return Number.isFinite(time)&&time<=now+60000&&now-time<=900000&&Array.isArray(directory.entries);
+}
+function rosterIds(entry){
+  const ids=entry.memberUuids;
+  if(!Array.isArray(ids)||ids.length!==entry.memberCount||ids.length>200)return null;
+  if(ids.some(id=>typeof id!=='string'||!UUID.test(id)))return null;
+  const unique=new Set(ids.map(id=>id.toLowerCase()));
+  return unique.size===ids.length?unique:null;
+}
+function directoryAssociations(directory){
+  const projected=projectGuildDirectory(directory).items;
+  if(projected.length!==directory.entries.length)return null;
   const seen=new Set(),associations=new Map();
+  for(let i=0;i<directory.entries.length;i++){
+    const guild=projected[i],ids=rosterIds(directory.entries[i]);
+    if(!guild||!ids||seen.has(guild.id))return null;
+    seen.add(guild.id);
+    for(const id of ids){
+      if(!associations.has(id))associations.set(id,[]);
+      associations.get(id).push({id:guild.id,name:guild.name,level:guild.level,banner:guild.banner});
+    }
+  }
+  return [...associations.values()].some(guilds=>guilds.length>20)?null:associations;
+}
+function associateDirectory(players,directory,now){
+  if(!validDirectoryCapture(directory,now))return false;
   try {
-    const projected=projectGuildDirectory(directory).items;
-    if(projected.length!==directory.entries.length)return false;
-    for(let i=0;i<directory.entries.length;i++) {
-      const entry=directory.entries[i], guild=projected[i], ids=entry.memberUuids;
-      if(!guild||!Array.isArray(ids)||ids.length!==entry.memberCount||ids.length>200||ids.some(id=>typeof id!=='string'||!UUID.test(id)))return false;
-      const local=new Set(ids.map(id=>id.toLowerCase()));if(local.size!==ids.length)return false;
-      for(const id of local) {if(!associations.has(id))associations.set(id,[]);associations.get(id).push({id:guild.id,name:guild.name,level:guild.level,banner:guild.banner});}
-      if(seen.has(guild.id))return false;seen.add(guild.id);
-    }
-    if([...associations.values()].some(guilds=>guilds.length>20))return false;
-    for(const [id,player] of players) {
-      const guildMemberships=associations.get(id)??[];
-      Object.assign(player,{guildsKnown:true,guildMemberships});
-    }
+    const associations=directoryAssociations(directory);if(!associations)return false;
+    for(const [id,player] of players)Object.assign(player,{guildsKnown:true,guildMemberships:associations.get(id)??[]});
     return true;
   } catch {return false;}
 }
+function directoryConfigured(env){return Boolean(env.GUILDS_DIRECTORY_API_URL&&env.GUILDS_API_BEARER);}
 export async function enrichStoredPlayerGuilds(snapshot,env,now=Date.now(),fetchImpl=fetch) {
-  if(!env.GUILDS_DIRECTORY_API_URL||!env.GUILDS_API_BEARER||!Array.isArray(snapshot.items))return snapshot;
+  if(!directoryConfigured(env)||!Array.isArray(snapshot.items))return snapshot;
   const directory=await readLiveGuildDirectory(env,fetchImpl);
   const players=new Map(snapshot.items.filter(player=>UUID.test(player.id)).map(player=>[player.id.toLowerCase(),{...player}]));
   if(!associateDirectory(players,directory,now))return snapshot;

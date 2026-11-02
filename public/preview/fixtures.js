@@ -74,6 +74,13 @@ function previewApi(url) {
       if(state!=='empty')items.push(...['PreviewPlayer','BuilderTwo','Mapartist'].map((name,i)=>({id:'duels-'+i,type:'leader',name,wins:12-i*4})));
       return json({items,updatedAt:new Date(Date.now()-(state==='stale'?1800000:0)).toISOString(),stale:state==='stale'});
     }
+    if(parts[0]==='news' && new URL(location.href).searchParams.get('news-order-demo')==='1'){
+      return json({items:[
+        {slug:'sample-middle',title:'Sample: community update',category:'Announcement',date:'2026-06-15T12:00:00Z',authorName:'PreviewStaff',body:'This is a sample post for checking the date controls.'},
+        {slug:'sample-oldest',title:'Sample: earlier changelog',category:'Changelog',date:'2025-03-10T12:00:00Z',authorName:'PreviewStaff',pinned:true,body:'This older sample is pinned to show that date order takes priority.'},
+        {slug:'sample-newest',title:'Sample: latest event',category:'Event',date:'2026-10-20T12:00:00Z',authorName:'PreviewStaff',body:'This sample post has the newest date.'}
+      ]});
+    }
     if(parts[0]==='admin'){
       if(!staff)return json({error:'editor_role_required'},403);
       if(parts[1]==='session')return json({editor:true,name:'Fain',rank:'Founder'});

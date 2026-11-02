@@ -42,6 +42,118 @@ test('unattributed ledger sales contribute to prices without creating stall or g
     const data=await response.json();assert.equal(data.prices[0].price,14);assert.equal(data.history[0].quantity,3);assert.deepEqual(data.leaders,[]);
   }
 });
+test('guild route uses a configured authenticated full directory without exposing credentials',async()=>{
+  const {db,sql}=database();const savedFetch=globalThis.fetch;
+  const guildId='87654321-4321-4321-4321-cba987654321';
+  try {
+    globalThis.fetch=async(url,options)=>{
+      if(String(url).includes('market-api')) {assert.equal(options.headers.Authorization,undefined);return Response.json({stalls:[{owner:{type:'GUILD',id:guildId,avatar:{kind:'GUILD_BANNER',banner:{baseColor:'BLACK',patterns:[]}}}}]});}
+      if(String(url).includes('playtime-active-all')) {assert.equal(options.headers.Authorization,undefined);return Response.json({generatedAt:new Date().toISOString(),players:[]});}
+      assert.equal(options.headers.Authorization,'Bearer test-secret');
+      return Response.json({generatedAt:new Date().toISOString(),directoryRevision:'a'.repeat(64),total:1,offset:0,nextOffset:null,
+        entries:[{id:guildId,name:'Live guild',level:80,prestige:2,seasonalElo:1100,privateField:'never-publish'}]});
+    };
+    const response=await request(db,'guilds','GET',undefined,{env:{GUILDS_DIRECTORY_API_URL:'https://guilds.example/api/community/guild-directory',GUILDS_API_BEARER:'test-secret'}});
+    const data=await response.json();assert.equal(response.status,200);assert.equal(data.limited,false);
+    assert.equal(data.items[0].prestige,2);assert.equal(data.items[0].elo,1100);
+    assert.equal(data.items[0].banner.baseColor,'BLACK');
+    assert.equal(JSON.stringify(data).includes('secret'),false);assert.equal(JSON.stringify(data).includes('never-publish'),false);
+  } finally {globalThis.fetch=savedFetch;sql.close();}
+});
+test('guild route publishes complete roster names from fresh public players and never leaks member UUIDs',async()=>{
+  const {db,sql}=database();const savedFetch=globalThis.fetch;
+  const id='12345678-1234-1234-1234-123456789abc';
+  const fresh=new Date().toISOString();
+  try {
+    sql.prepare('INSERT INTO community_snapshots (kind,payload,updated_at) VALUES (?,?,?)').run('players',JSON.stringify({items:[{id,name:'Player'}]}),fresh);
+    globalThis.fetch=async url=>String(url).includes('market-api') ? Response.json({stalls:[]}) : Response.json({generatedAt:fresh,directoryRevision:'a'.repeat(64),total:1,offset:0,nextOffset:null,
+      entries:[{id:'guild-1',name:'Guild',memberCount:1,memberUuids:[id]}]});
+    const extra={env:{GUILDS_DIRECTORY_API_URL:'https://guilds.example/api/community/guild-directory',GUILDS_API_BEARER:'test-secret'}};
+    let data=await (await request(db,'guilds','GET',undefined,extra)).json();
+    assert.deepEqual(data.items[0].membersList,['Player']);assert.equal(JSON.stringify(data).includes(id),false);
+    sql.prepare('UPDATE community_snapshots SET updated_at=? WHERE kind=?').run(new Date(Date.now()-3600000).toISOString(),'players');
+    data=await (await request(db,'guilds','GET',undefined,extra)).json();assert.deepEqual(data.items[0].membersList,[]);
+  } finally {globalThis.fetch=savedFetch;sql.close();}
+});
+test('guild route can resolve a complete roster from the public leaderboard when player snapshots are absent',async()=>{
+  const {db,sql}=database();const savedFetch=globalThis.fetch;
+  const id='12345678-1234-1234-1234-123456789abc', now=new Date().toISOString();
+  try {
+    globalThis.fetch=async(url,options)=>{
+      if(String(url).includes('market-api'))return Response.json({stalls:[]});
+      if(String(url).includes('playtime-active-all')) {
+        assert.equal(options.headers.Authorization,undefined);
+        return Response.json({generatedAt:now,players:[{uuid:id,username:'RealPlayer'}]});
+      }
+      return Response.json({generatedAt:now,directoryRevision:'a'.repeat(64),total:1,offset:0,nextOffset:null,
+        entries:[{id:'guild-1',name:'Guild',memberCount:1,memberUuids:[id]}]});
+    };
+    const extra={env:{GUILDS_DIRECTORY_API_URL:'https://guilds.example/api/community/guild-directory',GUILDS_API_BEARER:'test-secret'}};
+    const data=await (await request(db,'guilds','GET',undefined,extra)).json();
+    assert.deepEqual(data.items[0].membersList,['RealPlayer']);assert.equal(JSON.stringify(data).includes(id),false);
+  } finally {globalThis.fetch=savedFetch;sql.close();}
+});
+test('guild route supplements incomplete fresh player snapshots without publishing partial rosters',async()=>{
+  const {db,sql}=database();const savedFetch=globalThis.fetch;
+  const first='12345678-1234-1234-1234-123456789abc',second='87654321-4321-4321-4321-cba987654321',now=new Date().toISOString();
+  try {
+    sql.prepare('INSERT INTO community_snapshots (kind,payload,updated_at) VALUES (?,?,?)').run('players',JSON.stringify({items:[{id:first,name:'First'}]}),now);
+    globalThis.fetch=async(url,options)=>{
+      if(String(url).includes('market-api'))return Response.json({stalls:[]});
+      if(String(url).includes('playtime-active-all')) {assert.equal(options.headers.Authorization,undefined);return Response.json({generatedAt:now,players:[{uuid:second,username:'Second'}]});}
+      return Response.json({generatedAt:now,directoryRevision:'a'.repeat(64),total:1,offset:0,nextOffset:null,
+        entries:[{id:'guild-1',name:'Guild',memberCount:2,memberUuids:[first,second]}]});
+    };
+    const extra={env:{GUILDS_DIRECTORY_API_URL:'https://guilds.example/api/community/guild-directory',GUILDS_API_BEARER:'test-secret'}};
+    const data=await (await request(db,'guilds','GET',undefined,extra)).json();
+    assert.deepEqual(data.items[0].membersList,['First','Second']);
+  } finally {globalThis.fetch=savedFetch;sql.close();}
+});
+test('malformed optional directory falls back to the limited leaderboard',async()=>{
+  const {db,sql}=database();const savedFetch=globalThis.fetch;
+  try {
+    globalThis.fetch=async url=>{
+      if(String(url).includes('market-api'))return Response.json({stalls:[]});
+      if(String(url).includes('guilds.example'))return Response.json({generatedAt:new Date().toISOString(),directoryRevision:'a'.repeat(64),total:1,offset:0,nextOffset:null,entries:[{id:'bad id',name:'Invalid'}]});
+      return Response.json({generatedAt:new Date().toISOString(),entries:[{id:'valid',name:'Fallback'}]});
+    };
+    const response=await request(db,'guilds','GET',undefined,{env:{GUILDS_DIRECTORY_API_URL:'https://guilds.example/api/community/guild-directory',GUILDS_API_BEARER:'test-secret'}});
+    const data=await response.json();assert.equal(response.status,200);assert.equal(data.limited,true);assert.equal(data.items[0].name,'Fallback');
+  } finally {globalThis.fetch=savedFetch;sql.close();}
+});
+test('stale guild snapshots yield only to a newer live leaderboard and survive upstream failures',async()=>{
+  const {db,sql}=database();
+  const snapshot={items:[{id:'guild-1',name:'Old guild',level:1}]};
+  const old=new Date(Date.now()-3600000).toISOString();
+  const recent=new Date(Date.now()-1000).toISOString();
+  sql.prepare('INSERT INTO community_snapshots (kind,payload,updated_at) VALUES (?,?,?)').run('guilds',JSON.stringify(snapshot),old);
+  const savedFetch=globalThis.fetch;
+  try {
+    let calls=0;
+    globalThis.fetch=async url=>{
+      calls++;
+      if(String(url).includes('market-api')) return Response.json({stalls:[]});
+      return Response.json({generatedAt:recent,entries:[{id:'guild-1',name:'Live guild',level:2}]});
+    };
+    let data=await (await request(db,'guilds')).json();
+    assert.equal(data.items[0].name,'Live guild');assert.equal(data.limited,true);assert.equal(data.stale,false);
+    globalThis.fetch=async()=>{throw new Error('unavailable');};
+    data=await (await request(db,'guilds')).json();
+    assert.equal(data.items[0].name,'Old guild');assert.equal(data.stale,true);
+    globalThis.fetch=async()=>Response.json({generatedAt:old,entries:[{id:'guild-1',name:'Not newer'}]});
+    data=await (await request(db,'guilds')).json();assert.equal(data.items[0].name,'Old guild');
+    sql.prepare('UPDATE community_snapshots SET updated_at=? WHERE kind=?').run(recent,'guilds');
+    globalThis.fetch=async()=>{throw new Error('fresh snapshots should not fetch');};
+    data=await (await request(db,'guilds')).json();assert.equal(data.items[0].name,'Old guild');assert.equal(data.stale,false);
+    const future=new Date(Date.now()+86400000).toISOString();
+    sql.prepare('UPDATE community_snapshots SET updated_at=? WHERE kind=?').run(future,'guilds');
+    globalThis.fetch=async url=>String(url).includes('market-api')?Response.json({stalls:[]}):Response.json({generatedAt:recent,entries:[{id:'guild-1',name:'Live guild'}]});
+    data=await (await request(db,'guilds')).json();assert.equal(data.items[0].name,'Live guild');
+    globalThis.fetch=async()=>{throw new Error('unavailable');};
+    data=await (await request(db,'guilds')).json();assert.equal(data.stale,true);
+    assert.ok(calls>0);
+  } finally {globalThis.fetch=savedFetch;sql.close();}
+});
 test('quest feed fails closed until signed data exists, projects privacy, and uses source freshness',async()=>{
   const {db}=database();assert.equal((await request(db,'guildquests')).status,503);
   const input=guildQuestPreview();input.generatedAt=new Date(Date.now()-3600000).toISOString();input.items[0].quests[0].standings[0].claimActorId='private';
@@ -139,4 +251,12 @@ test('market alerts use the dedicated website notification token before legacy c
  };
  assert.equal((await dispatchAlerts({COMMUNITY_DB:db,MARKET_ALERTS_ENABLED:'true',ENTHUSIA_SITE_DISCORD_BOT_TOKEN:'dedicated-test-token',DISCORD_BOT_TOKEN:'legacy-test-token'},send)).sent,1);
  assert.equal(messages,1);
+});
+test('public player boards remain available without the optional community database',async()=>{
+  const id='10000000-0000-4000-8000-000000000001';
+  const data={generatedAt:new Date().toISOString(),players:[{uuid:id,username:'Player',value:9}]};
+  const env={BALANCE_LEADERBOARDS:{get:async()=>({json:async()=>data})}};
+  const response=await request(null,'players','GET',undefined,{env});
+  assert.equal(response.status,200);const result=await response.json();assert.equal(result.items[0].name,'Player');assert.equal(result.limited,true);
+  assert.equal((await request(null,'news')).status,503);
 });

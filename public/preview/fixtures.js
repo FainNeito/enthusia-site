@@ -92,7 +92,14 @@ function previewApi(url) {
     if(parts[0]==='insights')return json({...dataset.community.insights,week:(url.searchParams.get('week')||'2026-10-05')+'T00:00:00Z',mode:url.searchParams.get('mode')||'stall'});
     return json(dataset.community[parts[0]]??{items:[]});
   }
-  if(url.pathname==='/api/punishments'&&document.body.hasAttribute?.('data-exact-punishments')){const values=['BAN','MUTE','WARN','BAN'].map((type,index)=>({...punishment,punishmentType:type,designIndex:index}));return json({items:values.filter(row=>!url.searchParams.get('type')||url.searchParams.get('type')==='ALL'||row.punishmentType===url.searchParams.get('type')),nextCursor:null});}
+  if(url.pathname==='/api/punishments'&&document.body.hasAttribute?.('data-exact-punishments')){
+    const values=[punishment,
+      {...punishment,player:'BuilderTwo',punishmentType:'BAN',expiresAt:null,issuedBy:'PreviewStaff',caseId:'01K0000000000001'},
+      {...punishment,player:'Mapartist',punishmentType:'WARNING',expiresAt:null,issuedBy:undefined,appealAvailable:false,caseId:'01K0000000000002'},
+      {...punishment,player:'PreviewPlayer',punishmentType:'BAN',state:'REVOKED',appealAvailable:false,caseId:'01K0000000000003'}];
+    const q=(url.searchParams.get('q')||'').toLowerCase(),type=url.searchParams.get('type')||'ALL';
+    return json({items:values.filter(row=>(type==='ALL'||row.punishmentType===type)&&(!q||row.player.toLowerCase().includes(q)||row.caseId.toLowerCase()===q)),nextCursor:null});
+  }
   const route=routes.get(url.pathname);
   if(route)return route(url);
   for(const [matches,render] of groups)if(matches(url.pathname))return render(url.pathname);

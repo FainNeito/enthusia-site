@@ -1,5 +1,6 @@
 window.ENTHUSIA = {
   serverIp: "enthusia.net",
+  bedrockIp: "bedrock.enthusia.net",
   tebexUrl: "https://enthusia-shop.tebex.io/",
   discordInvite: "https://discord.gg/5ccgDCmNSc",
   discordServerId: "1410303324745371709",

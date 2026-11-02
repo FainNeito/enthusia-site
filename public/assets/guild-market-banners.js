@@ -5,13 +5,17 @@ function validBanner(value){
  if(!value.patterns.every(p=>p&&DYES.has(p.color)&&typeof p.type==='string'&&/^[A-Z_]{1,40}$/.test(p.type)))return null;
  return {baseColor:value.baseColor,patterns:value.patterns.map(p=>({type:p.type,color:p.color}))};
 }
-export function mergeMarketGuildBanners(items,snapshot){
- if(!Array.isArray(items)||!Array.isArray(snapshot?.stalls)||snapshot.stalls.length>1000)return items;
+function collectBanners(stalls){
  const banners=new Map(),conflicts=new Set();
- for(const stall of snapshot.stalls){const owner=stall?.owner,id=uuid(owner?.id),banner=validBanner(owner?.avatar?.banner);
+ for(const stall of stalls){const owner=stall?.owner,id=uuid(owner?.id),banner=validBanner(owner?.avatar?.banner);
   if(owner?.type!=='GUILD'||owner?.avatar?.kind!=='GUILD_BANNER'||!id||!banner)continue;
   if(banners.has(id)&&JSON.stringify(banners.get(id))!==JSON.stringify(banner))conflicts.add(id);
   banners.set(id,banner);
  }
+ return {banners,conflicts};
+}
+export function mergeMarketGuildBanners(items,snapshot){
+ if(!Array.isArray(items)||!Array.isArray(snapshot?.stalls)||snapshot.stalls.length>1000)return items;
+ const {banners,conflicts}=collectBanners(snapshot.stalls);
  return items.map(item=>{const id=uuid(item.id),banner=!item.banner&&id&&!conflicts.has(id)?banners.get(id):null;return banner?{...item,banner}:item;});
 }

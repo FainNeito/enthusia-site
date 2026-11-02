@@ -1,6 +1,7 @@
 import { loadOwnedPunishmentAppeals, ownedPunishmentAppealLink } from "./punishment-appeal-links.js?v=2";
 import { exactPunishmentCard } from './exact-punishments.js?v=5';
 import { punishmentReason, punishmentStatus, punishmentEnd } from './punishment-presentation.js?v=2';
+import { loadActivePunishmentPages } from './active-punishment-filter.js?v=1';
 const resultsRoot = document.querySelector("#punishment-results");
 const summary = document.querySelector("#punishment-summary");
 const form = document.querySelector("#punishment-search");
@@ -17,6 +18,7 @@ clearSearch.hidden = !activeSearch;
 let nextCursor = null;
 let ownedPunishments = [];
 let displayedItems = [];
+let requestGeneration = 0;
 
 function date(value) {
   const parsed = Date.parse(value || "");
@@ -70,29 +72,44 @@ function punishmentCard(item) {
   return article;
 }
 
+function emptySummary(search, filter, cursor) {
+  if (search && selectedRecord(search)) return "This punishment is not part of the selected public records. You can still manage its appeal from your account.";
+  if (search) return filter === "ACTIVE" ? 'No active punishments match “' + search + '”.' : 'No public records match “' + search + '”.';
+  if (filter === "ACTIVE" && cursor) return "No active punishments in these records. Select Load more to continue.";
+  return "No public records are available for this filter.";
+}
+
 function setLoading(loading) {
   resultsRoot.setAttribute("aria-busy", String(loading));
   loadMore.disabled = loading;
 }
 
 async function load({ append = false } = {}) {
+  const generation = ++requestGeneration;
+  const filter = activeFilter, search = activeSearch;
   setLoading(true);
   if (!append) {
     displayedItems = [];
     resultsRoot.replaceChildren();
     summary.textContent = activeSearch ? (selectedRecord(activeSearch) ? "Loading selected public records…" : `Searching for “${activeSearch}”…`) : "Loading public records…";
   }
-  const parameters = new URLSearchParams();
-  if (activeSearch) parameters.set("q", activeSearch);
-  else {
-    parameters.set("type", activeFilter);
-    if (append && nextCursor) parameters.set("cursor", nextCursor);
-  }
-  try {
-    const response = await fetch(`/api/punishments?${parameters}`, { headers: { accept: "application/json" } });
+  const fetchPage = async cursor => {
+    const parameters = new URLSearchParams();
+    if (search) parameters.set("q", search);
+    else {
+      parameters.set("type", filter === "ACTIVE" ? "ALL" : filter);
+      if (cursor) parameters.set("cursor", cursor);
+    }
+    const response = await fetch('/api/punishments?' + parameters, { headers: { accept: "application/json" } });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(String(response.status));
-    const items = Array.isArray(payload) ? payload : Array.isArray(payload.items) ? payload.items : [];
+    return {items: Array.isArray(payload) ? payload : Array.isArray(payload.items) ? payload.items : [], nextCursor: search ? null : payload.nextCursor || null};
+  };
+  try {
+    const cursor = append ? nextCursor : null;
+    const payload = filter === "ACTIVE" ? await loadActivePunishmentPages(fetchPage, cursor) : await fetchPage(cursor);
+    if (generation !== requestGeneration) return;
+    const items = payload.items;
     if (!append) resultsRoot.replaceChildren();
     displayedItems = append ? [...displayedItems, ...items] : items;
     resultsRoot.append(...items.map(punishmentCard));
@@ -101,13 +118,14 @@ async function load({ append = false } = {}) {
     const total = resultsRoot.childElementCount;
     summary.textContent = total
       ? `${total} public record${total === 1 ? "" : "s"}${activeSearch ? (selectedRecord(activeSearch) ? " for the selected record" : ` matching “${activeSearch}”`) : " shown"}.`
-      : activeSearch ? (selectedRecord(activeSearch) ? "This punishment is not part of the public record. You can still manage its appeal from your account." : `No public records match “${activeSearch}”.`) : "No public records are available for this filter.";
+      : emptySummary(search, filter, nextCursor);
   } catch {
+    if (generation !== requestGeneration) return;
     if (!append) resultsRoot.replaceChildren();
     summary.textContent = "Public punishment history is temporarily unavailable.";
     loadMore.hidden = true;
   } finally {
-    setLoading(false);
+    if (generation === requestGeneration) setLoading(false);
   }
 }
 

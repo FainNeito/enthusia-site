@@ -1,12 +1,15 @@
 // Optional authenticated producer. Never forward browser credentials or follow redirects.
+function directoryHeaders(env){
+  const headers={Accept:'application/json',Authorization:'Bearer '+env.GUILDS_API_BEARER};
+  if(env.CF_ACCESS_CLIENT_ID&&env.CF_ACCESS_CLIENT_SECRET){headers['CF-Access-Client-Id']=env.CF_ACCESS_CLIENT_ID;headers['CF-Access-Client-Secret']=env.CF_ACCESS_CLIENT_SECRET;}
+  return headers;
+}
 function directoryRequest(env) {
   if (!env.GUILDS_DIRECTORY_API_URL || !env.GUILDS_API_BEARER) return null;
   try {
     const url=new URL(env.GUILDS_DIRECTORY_API_URL);
     if(url.protocol!=='https:'||url.username||url.password)return null;
-    const headers={Accept:'application/json',Authorization:'Bearer '+env.GUILDS_API_BEARER};
-    if(env.CF_ACCESS_CLIENT_ID&&env.CF_ACCESS_CLIENT_SECRET){headers['CF-Access-Client-Id']=env.CF_ACCESS_CLIENT_ID;headers['CF-Access-Client-Secret']=env.CF_ACCESS_CLIENT_SECRET;}
-    return {url,headers};
+    return {url,headers:directoryHeaders(env)};
   } catch {return null;}
 }
 function validDirectoryTimestamp(data){
@@ -37,6 +40,11 @@ function acceptDirectoryPage(data,state){
   if(data.entries.length===0||data.nextOffset!==expected||expected>=state.total)return 'invalid';
   state.offset=expected;return 'next';
 }
+async function fetchDirectoryPage(request,fetchImpl){
+  const response=await fetchImpl(request.url.toString(),{headers:request.headers,redirect:'error',signal:globalThis.AbortSignal.timeout(5000)});
+  if(!response.ok)throw new Error('directory_unavailable');
+  return response.json();
+}
 export async function readLiveGuildDirectory(env,fetchImpl=fetch){
   const request=directoryRequest(env);if(!request)return null;
   const state={entries:[],ids:new Set(),offset:0,revision:null,total:null,generatedAt:null};
@@ -44,9 +52,7 @@ export async function readLiveGuildDirectory(env,fetchImpl=fetch){
     for(let page=0;page<20;page++){
       request.url.searchParams.set('offset',String(state.offset));request.url.searchParams.set('limit','50');
       if(state.revision!==null)request.url.searchParams.set('revision',state.revision);
-      const response=await fetchImpl(request.url.toString(),{headers:request.headers,redirect:'error',signal:globalThis.AbortSignal.timeout(5000)});
-      if(!response.ok)return null;
-      const status=acceptDirectoryPage(await response.json(),state);
+      const status=acceptDirectoryPage(await fetchDirectoryPage(request,fetchImpl),state);
       if(status==='invalid')return null;
       if(status==='complete')return {entries:state.entries,generatedAt:state.generatedAt};
     }

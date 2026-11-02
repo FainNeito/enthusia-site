@@ -49,13 +49,14 @@ function rosterIds(entry){
   const unique=new Set(ids.map(id=>id.toLowerCase()));
   return unique.size===ids.length?unique:null;
 }
+function validGuildRoster(guild,ids,seen){return Boolean(guild&&ids&&!seen.has(guild.id));}
 function directoryAssociations(directory){
   const projected=projectGuildDirectory(directory).items;
   if(projected.length!==directory.entries.length)return null;
   const seen=new Set(),associations=new Map();
   for(let i=0;i<directory.entries.length;i++){
     const guild=projected[i],ids=rosterIds(directory.entries[i]);
-    if(!guild||!ids||seen.has(guild.id))return null;
+    if(!validGuildRoster(guild,ids,seen))return null;
     seen.add(guild.id);
     for(const id of ids){
       if(!associations.has(id))associations.set(id,[]);

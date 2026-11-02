@@ -18,11 +18,21 @@ test("linked account normalization accepts only canonical player identities", ()
       null,
       { uuid: "not-a-uuid", name: "Invalid" },
       { uuid: firstUuid.toUpperCase(), name: "  Player_1  " },
-      { uuid: uuid(2), name: "name-is-too-long-for-minecraft" }
+      { uuid: uuid(2), name: "a".repeat(33) }
     ]
   });
 
   assert.deepEqual([...links.values()], [{ uuid: firstUuid, name: "Player_1" }]);
+});
+
+test("linked Bedrock accounts retain their authoritative names and can be selected", () => {
+  const session = { linkedMinecraftAccounts: [
+    { uuid: uuid(1), name: ".Bedrock Player" },
+    { uuid: uuid(2), name: "*BedrockPlayer" }
+  ] };
+  assert.deepEqual(linkedMinecraftAccount(session, uuid(1)), session.linkedMinecraftAccounts[0]);
+  assert.deepEqual(linkedMinecraftAccount(session, uuid(2)), session.linkedMinecraftAccounts[1]);
+  assert.equal(normalizedLinks({ linkedMinecraftAccounts: [{ uuid: uuid(3), name: "<script>" }] }).size, 0);
 });
 
 test("linked account normalization stops at the supported identity limit", () => {

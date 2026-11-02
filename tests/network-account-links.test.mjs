@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { d1, migratedDatabase } from "./support/d1-sqlite.mjs";
 import { normalizeNetworkAccounts, refreshNetworkAccounts } from "../functions/lib/competitions/network-accounts.js";
+import { createIdentitySession } from "../functions/lib/competitions/identity.js";
+import { getCompetitionParticipantSession, linkedMinecraftAccount } from "../functions/lib/competitions/participant-auth.js";
 
 const USER = "111111111111111111";
 const OTHER = "222222222222222222";
@@ -33,6 +35,22 @@ test("authoritative names preserve Bedrock prefixes and full gamertags", () => {
     const account = { uuid: A, name, linkedAt: NOW };
     assert.deepEqual(normalizeNetworkAccounts({ accounts: [account] }), [account]);
   }
+});
+
+test("verified Bedrock link remains selectable in an authenticated competition session", async (t) => {
+  const database = await migratedDatabase();
+  t.after(() => database.close());
+  const db = d1(database);
+  const identity = await createIdentitySession(db, { id: USER, username: "Builder", guildMember: true });
+  t.mock.method(globalThis, "fetch", async () => Response.json({
+    accounts: [{ uuid: A, name: ".Bedrock Player", linkedAt: NOW }]
+  }));
+  const request = new Request("https://enthusia.info/api/competitions/auth/session", {
+    headers: { cookie: `__Host-enthusia_competition_session=${identity.token}` }
+  });
+  const session = await getCompetitionParticipantSession(request, db, { ...ENV, NETWORK_ACCOUNT_LINKS: "true" });
+  assert.deepEqual(linkedMinecraftAccount(session, A), { uuid: A, name: ".Bedrock Player" });
+  assert.equal(database.prepare("SELECT minecraft_name FROM competition_minecraft_links WHERE minecraft_uuid = ?").get(A).minecraft_name, ".Bedrock Player");
 });
 
 test("authoritative refresh updates only the verified user's projection and signs that identity", async (t) => {

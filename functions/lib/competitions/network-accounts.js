@@ -5,6 +5,10 @@ export function networkAccountsEnabled(env) {
   return String(env?.NETWORK_ACCOUNT_LINKS ?? "").trim().toLowerCase() === "true";
 }
 
+export function isNetworkAccountName(name) {
+  return typeof name === "string" && Boolean(name.trim()) && name.length <= 32 && !/[<>]|\p{C}/u.test(name);
+}
+
 export function normalizeNetworkAccounts(payload) {
   if (!Array.isArray(payload?.accounts) || payload.accounts.length > 100) {
     throw new Error("Invalid network account list");
@@ -15,7 +19,7 @@ export function normalizeNetworkAccounts(payload) {
     const name = String(account?.name ?? "");
     const linkedAt = String(account?.linkedAt ?? "");
     // Authoritative names include Floodgate prefixes; ownership uses the UUID.
-    if (!isCanonicalUuid(uuid) || !name.trim() || name.length > 32 || /[<>]|\p{C}/u.test(name)
+    if (!isCanonicalUuid(uuid) || !isNetworkAccountName(name)
         || !Number.isFinite(Date.parse(linkedAt)) || seen.has(uuid)) {
       throw new Error("Invalid network account identity");
     }

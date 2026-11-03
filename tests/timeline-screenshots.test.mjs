@@ -35,3 +35,11 @@ test('restoration copies every original screenshot and respects a record image',
   restoreTimelineScreenshots(node,{slug:'unrelated'},templates);
   assert.equal(result.length,2);
 });
+
+test('timeline preview includes the captured published descriptions',async()=>{
+  const snapshot=JSON.parse(await readFile(new URL('../public/preview/timeline-published-capture.json',import.meta.url),'utf8'));
+  const item=snapshot.items.find(row=>row.slug==='the-beta-end-event-20251226');
+  assert.ok(item.body.includes('Enthusiast and Blood Guard'));
+  assert.ok(snapshot.items.length>=79);
+  assert.ok(snapshot.items.every(row=>typeof row.body==='string'&&row.body.length>0));
+});

@@ -68,18 +68,10 @@ function previewApi(url) {
   if(url.pathname.startsWith('/api/community/')){
     const parts=url.pathname.slice('/api/community/'.length).split('/');
     if(parts[0]==='timeline'&&new URL(location.href).searchParams.get('timeline-restore-demo')==='1'){
-      const entries=[
-        ['closed-beta-20251003','Closed Beta','2025-10-03','dev'],
-        ['first-open-beta-opens-20251031','First Open Beta opens','2025-10-31','beta1'],
-        ['koth-at-haunted-hill-20251115','KOTH at Haunted Hill','2025-11-15','beta1'],
-        ['final-open-beta-opens-20251220','Final Open Beta opens','2025-12-20','beta2'],
-        ['the-beta-end-event-20251226','The beta End event','2025-12-26','beta2'],
-        ['the-prologue-begins-20260102','The Prologue begins','2026-01-02','beta2'],
-        ['end-of-the-world-20260411','End of the World','2026-04-11','beta2'],
-        ['full-release-20260502','Full release','2026-05-02','ch1'],
-        ['market-opens-then-pauses-20260703','Market opens, then pauses','2026-07-03','ch1']
-      ];
-      return json({items:entries.map(([slug,title,date,era])=>({slug,title,date:date+'T00:00:00Z',body:'Preview of the restored historical screenshot.',category:'Milestone',tags:[era],verification:'verified',image:''}))});
+      return nativeFetch(new URL('timeline-published-capture.json',root)).then(response=>{
+        if(!response.ok)throw new Error('Timeline snapshot unavailable');
+        return response.json();
+      }).then(snapshot=>json(snapshot));
     }
     if(parts[0]==='bounties'&&new URL(location.href).searchParams.get('bounty-feed')==='offline')return json({error:'community_service_unavailable'},503);
     if(parts[0]==='warzone'){
@@ -141,6 +133,7 @@ window.turnstile={render(container,options){container.textContent='Preview verif
 window.WebSocket=class {constructor(){this.readyState=0;}addEventListener(){}removeEventListener(){}close(){this.readyState=3;}send(){}};
 const banner=document.createElement('aside');banner.className='preview-banner';banner.setAttribute('aria-label','Preview controls');
 const label=document.createElement('strong');label.textContent='Combined preview';const note=document.createElement('span');note.textContent='Sample data · actions are not saved';
+if(new URL(location.href).searchParams.get('timeline-restore-demo')==='1')note.textContent='Published timeline snapshot from 3 Nov 2026 · not live · actions are not saved';
 if(new URL(location.href).searchParams.get('bounty-feed')==='offline')note.textContent='Simulated bounty feed outage · no live data';
 const select=document.createElement('select');select.setAttribute('aria-label','Preview persona');for(const role of ['visitor','player','staff']){const opt=new Option(role.charAt(0).toUpperCase()+role.slice(1),role);opt.selected=role===persona;select.append(opt);}select.addEventListener('change',()=>{sessionStorage.setItem('enthusia-preview-persona',select.value);location.reload();});
 banner.append(label,note,select);if(document.body)document.body.prepend(banner);else document.addEventListener("DOMContentLoaded",()=>document.body.prepend(banner),{once:true});

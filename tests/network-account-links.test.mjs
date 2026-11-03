@@ -4,6 +4,7 @@ import { d1, migratedDatabase } from "./support/d1-sqlite.mjs";
 import { normalizeNetworkAccounts, refreshNetworkAccounts } from "../functions/lib/competitions/network-accounts.js";
 import { createIdentitySession } from "../functions/lib/competitions/identity.js";
 import { getCompetitionParticipantSession, linkedMinecraftAccount } from "../functions/lib/competitions/participant-auth.js";
+import { onRequestGet as sessionRoute } from "../functions/api/competitions/auth/session.js";
 
 const USER = "111111111111111111";
 const OTHER = "222222222222222222";
@@ -76,6 +77,45 @@ test("a network outage preserves cached ownership and refuses to authenticate fr
   t.mock.method(globalThis, "fetch", async () => new Response("Unavailable", { status: 503 }));
   await assert.rejects(refreshNetworkAccounts(d1(db), ENV, USER));
   assert.equal(db.prepare("SELECT discord_user_id AS owner FROM competition_minecraft_links WHERE minecraft_uuid = ?").get(A).owner, USER);
+});
+
+test("account display can show Discord during a network outage without trusting cached Minecraft ownership", async (t) => {
+  const database = await migratedDatabase();
+  t.after(() => database.close());
+  const db = d1(database);
+  const identity = await createIdentitySession(db, { id: USER, username: "Builder", guildMember: true });
+  link(database, A, USER);
+  t.mock.method(globalThis, "fetch", async () => new Response("Unavailable", { status: 503 }));
+  const env = { ...ENV, NETWORK_ACCOUNT_LINKS: "true", COMPETITIONS_ENABLED: "true", COMPETITIONS_DB: db };
+  const headers = { cookie: `__Host-enthusia_competition_session=${identity.token}` };
+  const request = path => new Request(`https://enthusia.info/api/competitions/auth/session${path}`, { headers });
+  const account = await sessionRoute({ env, request: request("?view=account") });
+  assert.equal(account.status, 200);
+  const data = await account.json();
+  assert.equal(data.authenticated, true);
+  assert.equal(data.discord.username, "Builder");
+  assert.equal(data.networkAccountsUnavailable, true);
+  assert.deepEqual(data.linkedMinecraftAccounts, []);
+  assert.equal(database.prepare("SELECT discord_user_id AS owner FROM competition_minecraft_links WHERE minecraft_uuid = ?").get(A).owner, USER);
+  assert.equal((await sessionRoute({ env, request: request("") })).status, 503);
+  await assert.rejects(getCompetitionParticipantSession(request(""), db, env));
+});
+
+test("account display preserves verified accounts when the network service is healthy", async (t) => {
+  const database = await migratedDatabase();
+  t.after(() => database.close());
+  const db = d1(database);
+  const identity = await createIdentitySession(db, { id: USER, username: "Builder", guildMember: true });
+  t.mock.method(globalThis, "fetch", async () => Response.json({ accounts: [{ uuid: A, name: "Builder", linkedAt: NOW }] }));
+  const env = { ...ENV, NETWORK_ACCOUNT_LINKS: "true", COMPETITIONS_ENABLED: "true", COMPETITIONS_DB: db };
+  const request = new Request("https://enthusia.info/api/competitions/auth/session?view=account", {
+    headers: { cookie: `__Host-enthusia_competition_session=${identity.token}` }
+  });
+  const response = await sessionRoute({ env, request });
+  const data = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(data.networkAccountsUnavailable, false);
+  assert.equal(data.linkedMinecraftAccounts[0].uuid, A);
 });
 
 test("competition history locks reject reassignment and roll back the entire refreshed projection", async (t) => {

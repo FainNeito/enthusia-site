@@ -182,18 +182,8 @@ export async function listDiscordMinecraftLinks(db, discordUserId) {
   return Array.isArray(result?.results) ? result.results : [];
 }
 
-export async function getCompetitionIdentitySession(request, db, now = new Date(), env = {}) {
-  const database = requireDatabase(db);
-  const token = parseCookies(request).get(SESSION_COOKIE);
-  if (!token) return null;
-  let sessionHash;
-  try {
-    sessionHash = await identityHash(token);
-  } catch {
-    return null;
-  }
-  const nowIso = new Date(timestamp(now)).toISOString();
-  const row = await database.prepare(`
+async function identitySessionRow(database, sessionHash, nowIso) {
+  return database.prepare(`
     SELECT
       s.discord_user_id AS discordUserId,
       s.created_at AS authenticatedAt,
@@ -209,16 +199,19 @@ export async function getCompetitionIdentitySession(request, db, now = new Date(
       AND s.expires_at > ?
     LIMIT 1
   `).bind(sessionHash, nowIso).first();
-  if (!row) return null;
-  await database.prepare(`
-    UPDATE competition_identity_sessions
-    SET last_seen_at = ?
-    WHERE session_hash = ?
-      AND last_seen_at < ?
-  `).bind(nowIso, sessionHash, new Date(timestamp(now) - 15 * 60 * 1000).toISOString()).run().catch(() => {});
-  const links = networkAccountsEnabled(env)
-    ? await refreshNetworkAccounts(database, env, row.discordUserId)
-    : await listDiscordMinecraftLinks(database, row.discordUserId);
+}
+
+async function identityLinks(database, env, discordUserId, options) {
+  if (!networkAccountsEnabled(env)) return { links: await listDiscordMinecraftLinks(database, discordUserId), networkAccountsUnavailable: false };
+  try { return { links: await refreshNetworkAccounts(database, env, discordUserId), networkAccountsUnavailable: false }; }
+  catch (error) {
+    // Only the account display may show Discord without live ownership proof.
+    if (options.accountDisplayOnly !== true) throw error;
+    return { links: [], networkAccountsUnavailable: true };
+  }
+}
+
+function identityMembership(row) {
   let discordGuildMember = false;
   let guildRoleIds = [];
   try {
@@ -233,6 +226,26 @@ export async function getCompetitionIdentitySession(request, db, now = new Date(
   } catch {
     guildRoleIds = [];
   }
+  return { discordGuildMember, guildRoleIds };
+}
+
+export async function getCompetitionIdentitySession(request, db, now = new Date(), env = {}, options = {}) {
+  const database = requireDatabase(db);
+  const token = parseCookies(request).get(SESSION_COOKIE);
+  if (!token) return null;
+  let sessionHash;
+  try { sessionHash = await identityHash(token); } catch { return null; }
+  const nowIso = new Date(timestamp(now)).toISOString();
+  const row = await identitySessionRow(database, sessionHash, nowIso);
+  if (!row) return null;
+  await database.prepare(`
+    UPDATE competition_identity_sessions
+    SET last_seen_at = ?
+    WHERE session_hash = ?
+      AND last_seen_at < ?
+  `).bind(nowIso, sessionHash, new Date(timestamp(now) - 15 * 60 * 1000).toISOString()).run().catch(() => {});
+  const { links, networkAccountsUnavailable } = await identityLinks(database, env, row.discordUserId, options);
+  const { discordGuildMember, guildRoleIds } = identityMembership(row);
   return Object.freeze({
     subject: `discord:${row.discordUserId}`,
     discord: Object.freeze({
@@ -243,8 +256,9 @@ export async function getCompetitionIdentitySession(request, db, now = new Date(
     }),
     linkedMinecraftAccounts: Object.freeze(links.map((link) => Object.freeze({ ...link }))),
     networkAccounts: networkAccountsEnabled(env),
+    networkAccountsUnavailable,
     discordGuildMember,
-    guildRoleIds: Object.freeze(Array.isArray(guildRoleIds) ? guildRoleIds.map(String) : []),
+    guildRoleIds: Object.freeze(guildRoleIds.map(String)),
     discordRolesCheckedAt: row.discordRolesCheckedAt,
     expiresAt: row.expiresAt,
     authenticatedAt: row.authenticatedAt,

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Market status preview</title><meta name="description" content="Preview market connection status styles.">
+  <link rel="stylesheet" href="../assets/market/market.css">
+  <link rel="stylesheet" href="../assets/market/site-theme.css?v=market-status-20261103">
+  <style>
+    @font-face{font-family:Minecraft;src:url('../assets/fonts/minecraft-regular.otf')}
+    body{margin:0;background:#fff1cf;color:#3a0d0a;font-family:Minecraft,monospace;line-height:1.5}
+    main{max-width:900px;margin:auto;padding:24px 12px}
+    .live{width:16px;height:16px;background:#3ddc5a;border:4px solid #4a0b08;animation:blink 1.4s infinite}
+    .preview-controls{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}
+    .preview-controls button{font:inherit;min-height:44px;padding:6px 12px;border:3px solid #4a0b08;background:#fff8e6;color:#3a0d0a;cursor:pointer}
+    .preview-controls button[aria-pressed=true]{background:#ffcf1f}
+    .example{background:#c0261d;padding:18px 0;color:#fff8e6}
+  </style>
+</head><body><main>
+  <h1>Market status preview</h1>
+  <p>Simulated market data. Choose a connection state to see the status at your screen size.</p>
+  <div class="preview-controls" aria-label="Simulated connection state">
+    <button type="button" data-status="live" aria-pressed="true">Live</button>
+    <button type="button" data-status="connecting" aria-pressed="false">Connecting</button>
+    <button type="button" data-status="reconnecting" aria-pressed="false">Reconnecting</button>
+    <button type="button" data-status="offline" aria-pressed="false">Offline</button>
+    <button type="button" data-status="unavailable" aria-pressed="false">Unavailable</button>
+  </div>
+  <div class="market-page-root"><section class="filter-shell example"><div class="container filters">
+    <div class="filter-meta"><span id="result-count">71 of 71 stalls</span><div id="filter-chips"></div>
+      <div id="market-connection-status" class="market-connection-status live" role="status" aria-live="polite">
+        <span class="connection-dot" aria-hidden="true"></span><span id="market-connection-label">Live</span><span id="market-last-updated"> · Last updated just now</span>
+      </div>
+    </div>
+  </div></section></div>
+  <p><a href="market.html">Open the full sample market</a></p>
+</main><script type="module" src="./market-status-check.js"></script></body></html>

@@ -1,0 +1,23 @@
+/* Compact leaderboard layout. */
+.board-body{align-items:center;gap:32px}
+.top3-wrap{flex:2 1 420px;min-width:0;display:flex;flex-direction:column;gap:22px}
+.top3-wrap:has(.podium[hidden]){display:none}
+.top3-heading{display:flex;align-items:center;gap:12px;color:#a31813;font-size:22px;line-height:1.3}
+.top3-heading::after{content:'';height:3px;background:#e2bd70;flex:1}
+.top3-wrap .podium{flex:none;width:100%}
+.board-card{padding:20px;gap:12px}
+.lb-list{gap:6px}
+.lb-row{padding-top:4px;padding-bottom:4px}
+.lb-name small{font-size:14px;line-height:19px}
+@media(max-width:760px){
+  .board-body{gap:26px}
+  .top3-wrap{flex-basis:100%;gap:16px}
+  .board-card{flex-basis:100%}
+  .podium{gap:8px}
+  .podium-block{font-size:26px}
+  .podium-1 .podium-block{height:110px}
+  .podium-2 .podium-block{height:76px}
+  .podium-3 .podium-block{height:52px}
+  .board-card{padding:16px}
+  .lb-cols{padding-left:12px;padding-right:12px}
+}

@@ -16,3 +16,11 @@ test('skin UUID aliases and compact UUIDs work; malformed and absent UUIDs retai
   for(const uuid of [undefined,'','not-a-uuid','../../other'])assert.equal(normalize({username:'StepSoy',uuid},0).headId,'StepSoy');
   assert.equal(normalize({name:'LegacyPlayer'},0).headId,'LegacyPlayer');
 });
+test('donor skins use the Minecraft username instead of a donor-system identifier',()=>{
+  const board={id:'donators-all-time'};
+  const row=normalize({username:'ToxikFlame11',uuid:'52720e9b-aa87-a7df-224b-4d85dab11429',formattedValue:'$191.00'},0,board);
+  assert.equal(row.headId,'ToxikFlame11');
+  assert.equal(row.name,'ToxikFlame11');
+  assert.equal(row.value,'$191.00');
+  assert.equal(normalize({username:'../bad',uuid:'52720e9b-aa87-a7df-224b-4d85dab11429',formattedValue:'$1.00'},0,board).headId,'');
+});

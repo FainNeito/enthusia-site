@@ -66,16 +66,18 @@
     };
   }
 
-  function normalizePlayer(entry, index) {
+  function normalizePlayer(entry, index, board) {
     var username = pickText(entry.username, entry.player, entry.uuid);
     var uuid = pickText(entry.uuid, entry.playerUuid, entry.player_uuid);
     var skinId = /^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(uuid) ? uuid.toLowerCase() : username;
+    // Donor feed IDs are not Minecraft UUIDs. Resolve these skins by username.
+    if (board && board.id === "donators-all-time") skinId = /^[a-z0-9_]{1,16}$/i.test(username) ? username : "";
     return {
       name: pickText(entry.displayName, entry.username, entry.name),
       detail: pickText(entry.subtext, entry.subtitle, entry.description),
       value: pickText(entry.formattedValue, entry.formatted, entry.stat, entry.score, entry.amount, entry.hours, entry.balance, entry.experience, entry.level),
       banner: null,
-      headId: skinId || pickText(entry.displayName, entry.name),
+      headId: board && board.id === "donators-all-time" ? skinId : skinId || pickText(entry.displayName, entry.name),
       rank: pickNumber(entry.rank) || index + 1
     };
   }
@@ -85,7 +87,7 @@
     if (!Array.isArray(list)) return [];
     return list
       .filter(function (entry) { return entry && typeof entry === "object"; })
-      .map(function (entry, index) { return board.mode === "guild" ? normalizeGuild(entry, index) : normalizePlayer(entry, index); })
+      .map(function (entry, index) { return board.mode === "guild" ? normalizeGuild(entry, index) : normalizePlayer(entry, index, board); })
       .filter(function (entry) { return entry.name && entry.value; });
   }
 

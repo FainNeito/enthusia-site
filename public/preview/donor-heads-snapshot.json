@@ -1,0 +1,55 @@
+{
+  "board": "donators-all-time",
+  "label": "Top Donators",
+  "statLabel": "Support",
+  "generatedAt": "2026-10-12T12:41:30.462000Z",
+  "source": "EnthusiaDonors",
+  "order": "desc",
+  "players": [
+    {
+      "rank": 1,
+      "uuid": "52720e9b-aa87-a7df-224b-4d85dab11429",
+      "username": "ToxikFlame11",
+      "displayName": "ToxikFlame11",
+      "value": 191,
+      "formattedValue": "$191.00",
+      "subtext": "All-time official Tebex support"
+    },
+    {
+      "rank": 2,
+      "uuid": "254a50aa-96c4-6a0c-a583-397176ce2706",
+      "username": "Summars",
+      "displayName": "Summars",
+      "value": 165,
+      "formattedValue": "$165.00",
+      "subtext": "All-time official Tebex support"
+    },
+    {
+      "rank": 3,
+      "uuid": "53a23547-ea96-7eac-d505-b38d85af4f85",
+      "username": "Pbe",
+      "displayName": "Pbe",
+      "value": 105,
+      "formattedValue": "$105.00",
+      "subtext": "All-time official Tebex support"
+    },
+    {
+      "rank": 4,
+      "uuid": "629d4d86-7ba5-6cf7-c1fe-2217a02e2ed6",
+      "username": "qaysoz",
+      "displayName": "qaysoz",
+      "value": 75,
+      "formattedValue": "$75.00",
+      "subtext": "All-time official Tebex support"
+    },
+    {
+      "rank": 5,
+      "uuid": "8b27c209-4f89-0ee4-baf2-a488dc85c786",
+      "username": "DarkHabits",
+      "displayName": "DarkHabits",
+      "value": 72,
+      "formattedValue": "$72.00",
+      "subtext": "All-time official Tebex support"
+    }
+  ]
+}

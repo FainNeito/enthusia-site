@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {hallItems,hallDescription,hallTitle,trophyTemplate} from '../public/assets/halloffame-model.js';
+import {hallItems,hallDescription,hallTitle,trophyTemplate,trophyDate} from '../public/assets/halloffame-model.js';
 
 test('published Hall of Fame records retain their distinct categories and details',async()=>{
   const data=JSON.parse(await readFile(new URL('../public/preview/halloffame-published-capture.json',import.meta.url),'utf8'));
@@ -19,4 +19,21 @@ test('published Hall of Fame records retain their distinct categories and detail
   assert.deepEqual(hallTitle(champion),{event:'PvP Tournament champion',winner:'OinkerMC'});
   for(const item of hallItems(data.items,'Trophy wall'))assert.notEqual(trophyTemplate(item.slug),undefined,item.slug);
   assert.equal(trophyTemplate('unknown-event'),undefined);
+});
+
+test('historical trophy dates come from their matching original preview cards',async()=>{
+  const html=await readFile(new URL('../public/halloffame.html',import.meta.url),'utf8');
+  const expected=[['media-event-stepsoy','1 Jul 2026'],['first-guild-to-level-100-vibe','28 Jun 2026'],
+    ['first-pvp-tournament-oinkermc','21 Jun 2026'],['the-end-fight-vibe-dogeclan-and-boopgang','9 May 2026'],
+    ['end-of-the-world-flomish-prologue-champion','11 Apr 2026'],['the-beta-end-event-enthusiast-and-blood-guard','26 Dec 2025'],
+    ['top-bug-hunter-redstoneisgreat','18 Nov 2025'],['koth-at-haunted-hill-p2wn-borlyn-and-doge198','15 Nov 2025'],
+    ['100-advertisement-event-flashstrength-and-p2wn','15 Nov 2025']];
+  for(const [slug,date] of expected){
+    const index=trophyTemplate(slug),match=html.match(new RegExp(`<template data-collection-template="" data-variant="${index}"[\\s\\S]*?</template>`));
+    assert.ok(match?.[0].includes(`>${date}</span>`),slug);
+    assert.equal(new Date(trophyDate({slug})).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}),date,slug);
+  }
+  assert.equal(trophyDate({slug:'mapart-competition'}),null);
+  assert.equal(trophyDate({slug:'halloween-build-competition'}),null);
+  assert.equal(trophyDate({slug:'media-event-stepsoy',date:'2026-07-02T00:00:00Z'}),'2026-07-02T00:00:00Z');
 });

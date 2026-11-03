@@ -8,7 +8,17 @@ const trophyTemplates=new Map([
   ['the-beta-end-event-enthusiast-and-blood-guard',7],['top-bug-hunter-redstoneisgreat',8],
   ['koth-at-haunted-hill-p2wn-borlyn-and-doge198',9],['100-advertisement-event-flashstrength-and-p2wn',10]
 ]);
+// Historical event dates shown on the corresponding original preview cards.
+// Planned competitions are intentionally excluded: their dates may change.
+const historicalTrophyDates=new Map([
+  ['media-event-stepsoy','2026-07-01'],['first-guild-to-level-100-vibe','2026-06-28'],
+  ['first-pvp-tournament-oinkermc','2026-06-21'],['the-end-fight-vibe-dogeclan-and-boopgang','2026-05-09'],
+  ['end-of-the-world-flomish-prologue-champion','2026-04-11'],['the-beta-end-event-enthusiast-and-blood-guard','2025-12-26'],
+  ['top-bug-hunter-redstoneisgreat','2025-11-18'],['koth-at-haunted-hill-p2wn-borlyn-and-doge198','2025-11-15'],
+  ['100-advertisement-event-flashstrength-and-p2wn','2025-11-15']
+]);
 export function trophyTemplate(slug){return trophyTemplates.get(slug);}
+export function trophyDate(item){return item.date||historicalTrophyDates.get(item.slug)||null;}
 export function hallItems(items,category){return items.filter(item=>item.category?.toLowerCase()===category.toLowerCase());}
 export function hallDescription(item){return timelineDisplayBody(item.body)??'';}
 export function hallTitle(item){

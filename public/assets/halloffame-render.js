@@ -1,5 +1,5 @@
 import {el} from './community-dom.js';
-import {trophyTemplate,hallItems,hallDescription,hallTitle} from './halloffame-model.js';
+import {trophyTemplate,trophyDate,hallItems,hallDescription,hallTitle} from './halloffame-model.js';
 
 function dateText(value){
   if(!value||!Number.isFinite(Date.parse(value)))return '';
@@ -31,7 +31,7 @@ function trophies(section,items,templates){
     card.querySelector('[aria-label="Podium"]')?.remove();
     const footer=card.lastElementChild,tag=footer.querySelector('.tag');
     if(tag)tag.textContent=({ch2:'Chapter 2',ch1:'Chapter 1',beta:'Open Betas',unknown:'Era unavailable'})[era];
-    const last=footer.querySelector('span:not(.tag)');if(last)last.textContent=dateText(item.date);
+    const last=footer.querySelector('span:not(.tag)');if(last)last.textContent=dateText(trophyDate(item));
     return card;
   });
   grid.replaceChildren(...cards);

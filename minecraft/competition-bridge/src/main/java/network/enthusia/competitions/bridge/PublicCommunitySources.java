@@ -29,7 +29,7 @@ final class PublicCommunitySources implements CommunityFeedHttpServer.Source {
     }
     public Map<String, Object> readPlayers(List<UUID> players) throws Exception {
         synchronized (playerReadLock) {
-        return MainThreadBridge.call(bridge, 4000, () -> {
+        return MainThreadBridge.callCancellableRead(bridge, 4000, () -> {
             Plugin provider = enabled("EnthusiaAdvancements");
             Object snapshot = provider.getClass().getMethod("websitePlayerAchievements", List.class).invoke(provider, players);
             if (!(snapshot instanceof Map<?, ?> map)) throw new IllegalStateException("Invalid player achievement provider");

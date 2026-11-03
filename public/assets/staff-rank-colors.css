@@ -1,0 +1,13 @@
+/* Staff badges use the role palette already defined in the site's rank styles. */
+.staff-card[data-value="Developer"] .staff-info .tag {
+  background:linear-gradient(90deg,#6fe0ff,#56e38e);
+  color:#160d07;
+}
+.staff-card[data-value="Mod"] .staff-info .tag {
+  background:linear-gradient(90deg,#9cc9ff,#5b86ff);
+  color:#160d07;
+}
+.staff-card[data-value="Helper"] .staff-info .tag {
+  background:linear-gradient(90deg,#cea130,#ffd76a);
+  color:#160d07;
+}

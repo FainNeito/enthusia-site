@@ -19,3 +19,7 @@
   background:linear-gradient(90deg,#cea130,#ffd76a);
   color:#160d07;
 }
+.builder-card .staff-info .tag {
+  background:linear-gradient(90deg,#980aff,#9a00a5);
+  color:#fff;
+}

@@ -1,6 +1,6 @@
 function linkedAccountRows(panels,session,actions){
     const list=panels[0].querySelector('ul'),prototype=list.firstElementChild;list.replaceChildren();
-    if(!(session.linkedMinecraftAccounts??[]).length){const empty=document.createElement('li');empty.className='account-link-empty';empty.textContent=session.networkAccountsPending?'Linked accounts will appear after the server connection is activated.':'No Minecraft accounts are linked yet.';list.append(empty);}
+    if(!(session.linkedMinecraftAccounts??[]).length){const empty=document.createElement('li');empty.className='account-link-empty';empty.textContent=session.networkAccountsUnavailable?'Minecraft account information is temporarily unavailable.':session.networkAccountsPending?'Linked accounts will appear after the server connection is activated.':'No Minecraft accounts are linked yet.';list.append(empty);}
     for(const account of session.linkedMinecraftAccounts??[]){const row=prototype.cloneNode(true);row.querySelector('span').textContent=account.name;row.querySelector('span:last-child').textContent=account.uuid;const button=row.querySelector('button');if(session.networkAccounts){button.remove();}else{button.addEventListener('click',()=>actions.unlink(account,button));}list.append(row);}
 }
 export function renderExactAccount(root,session,actions){
@@ -19,7 +19,7 @@ export function renderExactAccount(root,session,actions){
     const panels=grid.children;linkedAccountRows(panels,session,actions);
     const link=panels[1],button=link.querySelector('button'),code=link.querySelector('.swap'),command=code.querySelector('.cmd'),status=code.querySelector('p:last-child');code.hidden=true;
     if(session.networkAccounts&&(session.linkedMinecraftAccounts??[]).length){const help=document.createElement('p');help.className='account-link-status';help.textContent='To unlink an account, run /unlink CONFIRM in-game using that account.';link.append(help);}
-    if(session.networkAccountsPending){button.disabled=true;link.querySelector('p').textContent='Linking will be available after the server connection is activated.';}
+    if(session.networkAccountsUnavailable||session.networkAccountsPending){button.disabled=true;link.querySelector('p').textContent=session.networkAccountsUnavailable?'Minecraft account linking is temporarily unavailable. Please try again later.':'Linking will be available after the server connection is activated.';}
     button.addEventListener('click',()=>{code.hidden=false;actions.startLink(button,command,status);});
     if(session.linkedPunishmentAppeals){
       for(const [index,id,title] of [[2,'account-active-punishments','Active punishments'],[3,'account-expired-punishments','Expired punishments']]){

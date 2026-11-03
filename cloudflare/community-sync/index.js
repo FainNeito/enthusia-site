@@ -17,6 +17,7 @@ async function synchronizeSnapshot(kind,env,fetchImpl) {
 }
 async function synchronizeSales(env,fetchImpl) {
   const db=env.COMMUNITY_DB;
+  const syncStartedAt=new Date().toISOString();
   const saved=await db.prepare("SELECT payload FROM community_snapshots WHERE kind='sales_cursor'").first();
   const checkpoint=saved?JSON.parse(saved.payload):null;
   let cursor=checkpoint?.source===env.COMMUNITY_SALES_API_URL?checkpoint.cursor:null,records=0;
@@ -30,6 +31,11 @@ async function synchronizeSales(env,fetchImpl) {
         OR ?=0 OR CAST(json_extract(community_snapshots.payload,'$.cursor') AS INTEGER)<=CAST(? AS INTEGER)`)
       .bind(JSON.stringify({source:env.COMMUNITY_SALES_API_URL,cursor:data.checkpointCursor}),new Date().toISOString(),
         env.COMMUNITY_SALES_API_URL,/^\d{1,19}$/.test(data.checkpointCursor)?1:0,data.checkpointCursor));
+    if(data.nextCursor===null)statements.push(db.prepare(`INSERT INTO community_snapshots(kind,payload,updated_at)
+      VALUES ('sales_coverage',?,?) ON CONFLICT(kind) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at
+      WHERE excluded.updated_at>community_snapshots.updated_at
+        OR (excluded.updated_at=community_snapshots.updated_at AND json_extract(excluded.payload,'$.complete')=0)`)
+      .bind(JSON.stringify({complete:data.complete}),syncStartedAt));
     if(statements.length) {
       const results=await db.batch(statements);
       records+=results.slice(0,data.items.length).reduce((total,row)=>total+(row.meta.changes??0),0);

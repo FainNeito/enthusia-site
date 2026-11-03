@@ -1,4 +1,4 @@
-import { renderExactAccount } from './exact-account.js?v=8';
+import { renderExactAccount } from './exact-account.js?v=9';
 const API = "/api/competitions/auth";
 const root = document.querySelector("#account-session");
 let pollTimer = null;
@@ -340,7 +340,9 @@ function signedIn(session) {
   const links = element("section", "account-links");
   links.append(element("h3", "", "Linked Minecraft accounts"));
   const list = element("ul", "account-link-list");
-  if (session.linkedMinecraftAccounts?.length) {
+  if (session.networkAccountsUnavailable) {
+    list.append(element("li", "account-link-empty", "Minecraft account information is temporarily unavailable."));
+  } else if (session.linkedMinecraftAccounts?.length) {
     list.append(...session.linkedMinecraftAccounts.map(accountRow));
   } else {
     list.append(element("li", "account-link-empty", "No Minecraft accounts are linked."));
@@ -352,6 +354,10 @@ function signedIn(session) {
   const copy = element("p", "", "Generate a code when you are ready to finish the link in-game.");
   const button = element("button", "btn", "Generate link code");
   button.type = "button";
+  if (session.networkAccountsUnavailable || session.networkAccountsPending) {
+    button.disabled = true;
+    copy.textContent = "Minecraft account linking is temporarily unavailable. Please try again later.";
+  }
   const command = element("code", "account-link-command");
   const status = element("p", "account-link-status");
   status.setAttribute("role", "status");
@@ -366,7 +372,7 @@ function signedIn(session) {
 async function render() {
   if (pollTimer) clearTimeout(pollTimer);
   try {
-    const session = await request(`${API}/session`);
+    const session = await request(`${API}/session?view=account`);
     if(document.body.hasAttribute("data-exact-account")) renderExactAccount(root,session,{signInHref,signOut,unlink,startLink,punishmentClaimSection});
     else if (session.authenticated) signedIn(session);
     else signedOut();

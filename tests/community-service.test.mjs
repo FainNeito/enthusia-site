@@ -198,6 +198,34 @@ async function signed(db,payload,nonce='0123456789abcdef'){
   const sig=[...new Uint8Array(await crypto.subtle.sign('HMAC',key,enc.encode(`${time}\n${nonce}\n/api/community/ingest\n${raw}`)))].map(v=>v.toString(16).padStart(2,'0')).join('');
   return request(db,'ingest','POST',payload,{env:{COMMUNITY_INGEST_SECRET:secret},headers:{'x-enthusia-timestamp':time,'x-enthusia-nonce':nonce,'x-enthusia-signature':sig}});
 }
+test('market insights group sales at Eastern week boundaries across daylight saving changes',async()=>{
+  const {db,sql}=database();
+  const add=(id,when)=>sql.prepare('INSERT INTO market_sales VALUES (?,?,?,?,?,?,?)').run(id,'stall1','guild','stone',1,1,when);
+  add('before-spring','2026-03-09T03:59:59.000Z');
+  add('after-spring','2026-03-09T04:00:00.000Z');
+  add('before-fall','2026-11-02T04:59:59.000Z');
+  add('after-fall','2026-11-02T05:00:00.000Z');
+  const read=week=>handleCommunity({request:new Request('https://site.example/api/community/insights?week='+week),params:{path:'insights'},env:{COMMUNITY_DB:db}},dependencies);
+  const old=(await (await read('2026-10-26')).json());
+  const next=(await (await read('2026-11-02')).json());
+  assert.equal(old.week,'2026-10-26T04:00:00.000Z');
+  assert.equal(old.leaders[0].gold,1);
+  assert.equal(next.week,'2026-11-02T05:00:00.000Z');
+  assert.equal(next.leaders[0].gold,1);
+  assert.ok(old.weeks.includes('2026-03-02'));
+  assert.ok(old.weeks.includes('2026-03-09'));
+  assert.ok(old.weeks.includes('2026-10-26'));
+  assert.ok(old.weeks.includes('2026-11-02'));
+});
+test('a fresh completeness flag alone cannot establish historical market coverage',async()=>{
+  const {db,sql}=database();
+  const read=()=>handleCommunity({request:new Request('https://site.example/api/community/insights'),params:{path:'insights'},env:{COMMUNITY_DB:db}},dependencies);
+  assert.equal((await (await read()).json()).coverageComplete,false);
+  sql.prepare('INSERT INTO community_snapshots(kind,payload,updated_at) VALUES (?,?,?)').run('sales_coverage',JSON.stringify({complete:true}),new Date().toISOString());
+  assert.equal((await (await read()).json()).coverageComplete,false);
+  sql.prepare('UPDATE community_snapshots SET updated_at=? WHERE kind=?').run(new Date(Date.now()-3600000).toISOString(),'sales_coverage');
+  assert.equal((await (await read()).json()).coverageComplete,false);
+});
 test('signed sales ingest is replay resistant, idempotent and aggregates unit prices',async()=>{
   const {db,sql}=database();const payload={kind:'sales',items:[{id:'sale-1',stall:'stall-1',guild:'Guild',item:'stone',quantity:4,gold:2,occurredAt:new Date().toISOString()}]};
   assert.equal((await signed(db,payload)).status,200);

@@ -8,6 +8,17 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PublicCommunitySourcesTest {
+    public static final class PublicProvider {
+        public static List<String> getPublicBounties(int sort) { return List.of("visible"); }
+        public static List<String> getAllBounties(int sort) { return List.of("visible", "hidden"); }
+    }
+    public static final class LegacyProvider {
+        public static List<String> getAllBounties(int sort) { return List.of("hidden"); }
+    }
+    @Test void providerUsesPublicViewAndFailsClosedWithoutIt() throws Exception {
+        assertEquals(List.of("visible"), List.copyOf(PublicCommunitySources.publicBounties(PublicProvider.class)));
+        assertThrows(NoSuchMethodException.class, () -> PublicCommunitySources.publicBounties(LegacyProvider.class));
+    }
     public record Whitelist(List<UUID> list) { public List<UUID> getList() { return list; } }
     public record Setter(double amount, List<String> items, Whitelist whitelist) {
         public double getAmount() { return amount; }

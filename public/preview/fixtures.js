@@ -14,6 +14,9 @@ const playerId = '123e4567-e89b-42d3-a456-426614174000';
 const discordId = '6'.repeat(18);
 const account = { uuid:playerId,name:'PreviewPlayer' };
 const session = { authenticated:persona!=='visitor', discord:{id:discordId,username:staff?'PreviewStaff':'PreviewPlayer',globalName:staff?'Preview staff':'Preview player'}, discordGuildMember:true, linkedMinecraftAccounts:[account], minecraft:account, staff:{review:staff,manage:staff,appeals:staff,competitions:staff}, websiteAccountId:playerId };
+if(new URL(location.href).searchParams.get('account-link')==='offline'){
+  session.linkedMinecraftAccounts=[];session.networkAccounts=true;session.networkAccountsUnavailable=true;
+}
 const punishment = {player:'PreviewPlayer',punishmentType:'MUTE',broadReason:'CHAT',publicReason:'Sample moderation record',issuedBy:'PreviewStaff',issuedAt:'2026-10-10T12:00:00Z',expiresAt:'2026-12-10T18:30:00Z',state:'ACTIVE',caseId:'01K0000000000000',remainingSeconds:null,appealAvailable:true};
 const eligible = {id:'123e4567-e89b-42d3-a456-426614174099',...punishment,type:'MUTE',reason:'Sample moderation record',eligible:true};
 const submissions = ['Town Hall','Garden Plaza','Market Courtyard'].map((title,i)=>({id:'123e4567-e89b-42d3-a456-42661417420'+i,title,description:'A sample community build with gathering spaces and paths.',ownerName:'PreviewPlayer',ownerUuid:playerId,entryType:'SOLO',status:'APPROVED',participants:[{playerName:'PreviewPlayer',playerUuid:playerId,role:'OWNER'}],images:[],coverImageUrl:new URL('screenshots/slide-0'+(i+1)+'.webp',assets).href}));
@@ -64,6 +67,7 @@ const groups = [
 function previewApi(url) {
   if(url.pathname.startsWith('/api/community/')){
     const parts=url.pathname.slice('/api/community/'.length).split('/');
+    if(parts[0]==='bounties'&&new URL(location.href).searchParams.get('bounty-feed')==='offline')return json({error:'community_service_unavailable'},503);
     if(parts[0]==='warzone'){
       const state=new URL(location.href).searchParams.get('warzone-state')??'captured';
       if(state==='captured'||state==='last-week')return nativeFetch(new URL('warzone-server-snapshot.json',root)).then(response=>{if(!response.ok)throw new Error('Captured snapshot unavailable');return response.json();}).then(snapshot=>json({...snapshot.weeks[state==='last-week'?snapshot.previousWeek:snapshot.currentWeek],availableWeeks:[snapshot.currentWeek,snapshot.previousWeek]}));
@@ -123,6 +127,7 @@ window.turnstile={render(container,options){container.textContent='Preview verif
 window.WebSocket=class {constructor(){this.readyState=0;}addEventListener(){}removeEventListener(){}close(){this.readyState=3;}send(){}};
 const banner=document.createElement('aside');banner.className='preview-banner';banner.setAttribute('aria-label','Preview controls');
 const label=document.createElement('strong');label.textContent='Combined preview';const note=document.createElement('span');note.textContent='Sample data · actions are not saved';
+if(new URL(location.href).searchParams.get('bounty-feed')==='offline')note.textContent='Simulated bounty feed outage · no live data';
 const select=document.createElement('select');select.setAttribute('aria-label','Preview persona');for(const role of ['visitor','player','staff']){const opt=new Option(role.charAt(0).toUpperCase()+role.slice(1),role);opt.selected=role===persona;select.append(opt);}select.addEventListener('change',()=>{sessionStorage.setItem('enthusia-preview-persona',select.value);location.reload();});
 banner.append(label,note,select);if(document.body)document.body.prepend(banner);else document.addEventListener("DOMContentLoaded",()=>document.body.prepend(banner),{once:true});
 if(new URL(location.href).pathname.endsWith('/account.html')){

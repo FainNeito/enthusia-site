@@ -1,8 +1,15 @@
 const DAY=86400000;
+export function marketStallId(value,knownIds) {
+  return typeof value==='string'&&knownIds.has(value)?value:'';
+}
+export function marketStallLabel(value) {
+  const match=typeof value==='string'&&/^stall(\d+)$/i.exec(value);
+  return match?'Stall '+match[1]:value;
+}
 export function saleItemName(key){return key.replace(/^minecraft:/,'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
 export function marketHistoryModel(current,previous) {
   const row=value=>({...value,stall:value.name,sales:value.quantity,best:[]});
-  return {weeks:current.weeks,currentWeek:current.week,
+  return {weeks:current.weeks,currentWeek:current.week,coverageComplete:current.coverageComplete===true,
     winners:previous.hallOfFame.map(record=>({...row(record.winner),week:record.week})),
     live:current.leaders.map(row),items:current.prices.map(value=>({key:value.item,
       name:saleItemName(value.item),price:value.price,sales:value.quantity,days:[],

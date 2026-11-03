@@ -7,7 +7,7 @@ const status=document.querySelector('[data-directory-status]');
 const templates=new Map();for(const node of document.querySelectorAll('template[data-design-template]'))templates.set(node.dataset.designTemplate+':'+node.dataset.variant,node);
 const one=(selector,root=document)=>root.querySelector(selector);
 let items=[],selected=null,q='',filter=kind==='bounties'?'open':'all',sort=kind==='guilds'?'level':'gold';
-let limited=false;
+let limited=false,loaded=false;
 function guildBanner(item,large=false){const renderer=window.EnthusiaGuildBannerRenderer;const host=el('span',{class:large?'bn lg':'bn'});if(renderer){const image=item.banner?renderer.create(item.banner,item.name+' banner'):renderer.createPlaceholder(item.name);image.style.width='100%';image.style.height='100%';image.style.border='0';host.append(image);}return host;}
 function guildProfile(node,item){
   node.setAttribute('aria-label',item.name+' guild profile');
@@ -56,6 +56,8 @@ function directoryCount(count){
   return count+' '+(count===1?'bounty':'bounties')+' shown.';
 }
 function draw(){
+  // An unavailable or still-loading feed is not an empty directory.
+  if(!loaded)return;
   let rows=items.filter(item=>item.name.toLowerCase().includes(q.toLowerCase())&&(filter==='all'||item.state===filter||(filter==='recruiting'&&item.recruiting)||(filter==='peaceful'&&item.peaceful===true)||(filter==='hostile'&&item.peaceful===false)));
   rows=rows.sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):(b[sort]??-1)-(a[sort]??-1));
   const type=kind==='players'?'picker':'row';
@@ -83,8 +85,8 @@ async function start(){
   const sorts=new Map([['pickSLvl','level'],['pickSElo','elo'],['pickSMem','members'],['pickSName','name'],['pickHigh','gold'],['pickNew','date']]);
   for(const node of document.querySelectorAll('[data-on-click]')){const action=node.dataset.onClick;if(filters.has(action))node.addEventListener('click',()=>{filter=filters.get(action);pressed(node);draw();});if(sorts.has(action))node.addEventListener('click',()=>{sort=sorts.get(action);pressed(node);draw();});}
   one(kind==='guilds'?'[data-on-click="pickFAll"]':'[data-on-click="pickOpen"]')?.setAttribute('aria-pressed','true');one(kind==='guilds'?'[data-on-click="pickSLvl"]':'[data-on-click="pickHigh"]')?.setAttribute('aria-pressed','true');
-  one('[data-on-click="find"]')?.addEventListener('click',()=>{const item=items.find(v=>v.name.toLowerCase().startsWith(q.toLowerCase()));if(item){choose(item);one('[data-b-class*="missShow"]').hidden=true;}else{const miss=one('[data-b-class*="missShow"]');miss.textContent='No public profile by that name.';miss.hidden=false;}});
-  try{const data=await api(kind);items=data.items;limited=data.limited===true;
+  one('[data-on-click="find"]')?.addEventListener('click',()=>{if(!loaded)return;const item=items.find(v=>v.name.toLowerCase().startsWith(q.toLowerCase()));if(item){choose(item);one('[data-b-class*="missShow"]').hidden=true;}else{const miss=one('[data-b-class*="missShow"]');miss.textContent='No public profile by that name.';miss.hidden=false;}});
+  try{const data=await api(kind);if(!Array.isArray(data.items))throw new Error('Data is unavailable. Try again later.');items=data.items;limited=data.limited===true;loaded=true;
     if(kind==='guilds'&&!preview){for(const [action,key] of [['pickFRec','recruiting'],['pickFHos','peaceful'],['pickFPea','peaceful'],['pickSElo','elo']]){const control=one('[data-on-click="'+action+'"]');if(control&&!items.some(item=>item[key]!==null&&item[key]!==undefined)){control.disabled=true;control.title='Server data for this filter is not available yet.';}}for(const live of document.querySelectorAll('main .live'))if(limited)live.parentElement.textContent='Limited server export';}
     if(kind==='players'&&!preview){const picker=target('picker');picker?.setAttribute('aria-label','Public profiles');picker?.before(el('p',{text:'Search '+items.filter(item=>!item.previewExample).length+' public profiles. Up to 12 matching names are shown.'}));}
     const requestedGuildId=kind==='guilds'?decodeURIComponent(location.hash.slice(1)):'';
@@ -102,6 +104,6 @@ async function start(){
     }
 
 
-  }catch(error){status.hidden=false;status.textContent=error.message;for(const live of document.querySelectorAll('main .live'))live.parentElement.hidden=true;if(kind==='bounties')for(const node of document.querySelectorAll('main .stats .stat>b'))node.textContent='Unavailable';}
+  }catch(error){loaded=false;status.hidden=false;status.textContent=kind==='bounties'?'Bounty data is unavailable. Try again later.':error.message;for(const live of document.querySelectorAll('main .live'))live.parentElement.hidden=true;if(kind==='bounties')for(const node of document.querySelectorAll('main .stats .stat>b'))node.textContent='Unavailable';}
 }
 start().catch(error=>notice(error.message));

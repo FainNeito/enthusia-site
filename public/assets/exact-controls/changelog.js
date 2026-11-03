@@ -24,6 +24,11 @@ class Component extends window.DesignController {
     var on = function (c) { return c ? 'true' : 'false'; };
     var show = function (c) { return c ? '' : 'hide'; };
     var v = {};
+    var newest = st.newest === undefined ? true : !!st.newest;
+    v.oNew = on(newest);
+    v.oOld = on(!newest);
+    v.goNew = function () { window.EnthusiaHistoryOrder('newest'); self.setState({ newest: true }); };
+    v.goOld = function () { window.EnthusiaHistoryOrder('oldest'); self.setState({ newest: false }); };
     var i;
     navigationValues(self,st,v);
     var L = window.EnthusiaDesignModel;

@@ -119,8 +119,10 @@
 
   function initCopyIp() {
     var ip = text(cfg.serverIp) || "enthusia.net";
+    var bedrockIp = text(cfg.bedrockIp) || "bedrock.enthusia.net";
     var toast = selectOne("[data-toast]");
     var toastTitle = toast ? selectOne("[data-toast-title]", toast) : null;
+    var toastAddress = toast ? selectOne("[data-server-ip]", toast) : null;
     var timer = 0;
 
     selectAll("[data-server-ip]").forEach(function (node) { node.textContent = ip; });
@@ -135,7 +137,11 @@
 
     selectAll("[data-copy-ip]").forEach(function (button) {
       button.addEventListener("click", function () {
-        copyText(ip).then(
+        var mode = button.getAttribute("data-copy-ip");
+        var selected = selectOne('[data-switch="edition"][aria-pressed="true"]');
+        var address = mode === "bedrock" || (mode === "edition" && selected && selected.getAttribute("data-value") === "bedrock") ? bedrockIp : ip;
+        if (toastAddress) toastAddress.textContent = address;
+        copyText(address).then(
           function () { show("Address copied!"); },
           function () { show("Copy failed - the address is:"); }
         );

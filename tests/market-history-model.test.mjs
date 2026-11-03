@@ -1,10 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {marketHistoryModel,applyMarketHistory,marketMovers,historyPosition,previousMarketWinner} from '../public/assets/market/history-model.js';
+import {marketHistoryModel,applyMarketHistory,marketMovers,historyPosition,previousMarketWinner,marketStallId,marketStallLabel} from '../public/assets/market/history-model.js';
+test('stall links use recorded stall IDs and never infer them from a current owner',()=>{
+  const ids=new Set(['stall1','stall2']);
+  assert.equal(marketStallId('stall1',ids),'stall1');
+  assert.equal(marketStallId('FormerOwner',ids),'');
+  assert.equal(marketStallId('stall9',ids),'');
+  assert.equal(marketStallLabel('stall1'),'Stall 1');
+});
 test('ledger model keeps unavailable comparisons and unattributed sales separate from rankings',()=>{
   const data={week:'2026-10-12T00:00:00.000Z',weeks:[],prices:[{item:'diamond',price:14,quantity:3,change:null}],leaders:[],stallTotals:[{stall:'',gold:42}],hallOfFame:[]};
   const model=marketHistoryModel(data,data);
   assert.equal(model.items[0].d7,null);assert.equal(model.items[0].d1,null);
+  assert.equal(model.coverageComplete,false);
   assert.deepEqual(model.stallTotals,{});assert.deepEqual(model.live,[]);
 });
 test('unknown and wrong-direction comparisons cannot become biggest risers or fallers',()=>{

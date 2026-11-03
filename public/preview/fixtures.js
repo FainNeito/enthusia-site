@@ -14,6 +14,9 @@ const playerId = '123e4567-e89b-42d3-a456-426614174000';
 const discordId = '6'.repeat(18);
 const account = { uuid:playerId,name:'PreviewPlayer' };
 const session = { authenticated:persona!=='visitor', discord:{id:discordId,username:staff?'PreviewStaff':'PreviewPlayer',globalName:staff?'Preview staff':'Preview player'}, discordGuildMember:true, linkedMinecraftAccounts:[account], minecraft:account, staff:{review:staff,manage:staff,appeals:staff,competitions:staff}, websiteAccountId:playerId };
+if(new URL(location.href).searchParams.get('account-link')==='offline'){
+  session.linkedMinecraftAccounts=[];session.networkAccounts=true;session.networkAccountsUnavailable=true;
+}
 const punishment = {player:'PreviewPlayer',punishmentType:'MUTE',broadReason:'CHAT',publicReason:'Sample moderation record',issuedBy:'PreviewStaff',issuedAt:'2026-10-10T12:00:00Z',expiresAt:'2026-12-10T18:30:00Z',state:'ACTIVE',caseId:'01K0000000000000',remainingSeconds:null,appealAvailable:true};
 const eligible = {id:'123e4567-e89b-42d3-a456-426614174099',...punishment,type:'MUTE',reason:'Sample moderation record',eligible:true};
 const submissions = ['Town Hall','Garden Plaza','Market Courtyard'].map((title,i)=>({id:'123e4567-e89b-42d3-a456-42661417420'+i,title,description:'A sample community build with gathering spaces and paths.',ownerName:'PreviewPlayer',ownerUuid:playerId,entryType:'SOLO',status:'APPROVED',participants:[{playerName:'PreviewPlayer',playerUuid:playerId,role:'OWNER'}],images:[],coverImageUrl:new URL('screenshots/slide-0'+(i+1)+'.webp',assets).href}));

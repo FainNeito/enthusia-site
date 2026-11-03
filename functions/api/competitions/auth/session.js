@@ -7,7 +7,8 @@ export async function onRequestGet(context) {
   if (!competitionsEnabled(context.env)) return json({ error: "not_found" }, 404);
   if (!hasCompetitionDatabase(context.env)) return json({ error: "competition_database_unavailable" }, 503);
   try {
-    const session = await getCompetitionIdentitySession(context.request, context.env.COMPETITIONS_DB, undefined, context.env);
+    const accountDisplayOnly = new URL(context.request.url).searchParams.get("view") === "account";
+    const session = await getCompetitionIdentitySession(context.request, context.env.COMPETITIONS_DB, undefined, context.env, { accountDisplayOnly });
     if (!session) return json({ authenticated: false });
     return json({
       authenticated: true,
@@ -16,6 +17,7 @@ export async function onRequestGet(context) {
       discordGuildMember: session.discordGuildMember,
       linkedMinecraftAccounts: session.linkedMinecraftAccounts,
       networkAccounts: session.networkAccounts,
+      networkAccountsUnavailable: session.networkAccountsUnavailable,
       linkedPunishmentAppeals: automaticPunishmentAppeals(context.env),
       networkAccountsPending: String(context.env.NETWORK_ACCOUNT_LINKS ?? "").trim().toLowerCase() === "false",
       expiresAt: session.expiresAt

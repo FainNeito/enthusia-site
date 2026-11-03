@@ -182,7 +182,7 @@ export async function listDiscordMinecraftLinks(db, discordUserId) {
   return Array.isArray(result?.results) ? result.results : [];
 }
 
-export async function getCompetitionIdentitySession(request, db, now = new Date(), env = {}) {
+export async function getCompetitionIdentitySession(request, db, now = new Date(), env = {}, options = {}) {
   const database = requireDatabase(db);
   const token = parseCookies(request).get(SESSION_COOKIE);
   if (!token) return null;
@@ -216,9 +216,17 @@ export async function getCompetitionIdentitySession(request, db, now = new Date(
     WHERE session_hash = ?
       AND last_seen_at < ?
   `).bind(nowIso, sessionHash, new Date(timestamp(now) - 15 * 60 * 1000).toISOString()).run().catch(() => {});
-  const links = networkAccountsEnabled(env)
-    ? await refreshNetworkAccounts(database, env, row.discordUserId)
-    : await listDiscordMinecraftLinks(database, row.discordUserId);
+  let links, networkAccountsUnavailable = false;
+  if (networkAccountsEnabled(env)) {
+    try { links = await refreshNetworkAccounts(database, env, row.discordUserId); }
+    catch (error) {
+      // Only the account display may show the Discord identity without a live
+      // ownership lookup. All authorization callers retain fail-closed behavior.
+      if (options.accountDisplayOnly !== true) throw error;
+      links = [];
+      networkAccountsUnavailable = true;
+    }
+  } else links = await listDiscordMinecraftLinks(database, row.discordUserId);
   let discordGuildMember = false;
   let guildRoleIds = [];
   try {
@@ -243,6 +251,7 @@ export async function getCompetitionIdentitySession(request, db, now = new Date(
     }),
     linkedMinecraftAccounts: Object.freeze(links.map((link) => Object.freeze({ ...link }))),
     networkAccounts: networkAccountsEnabled(env),
+    networkAccountsUnavailable,
     discordGuildMember,
     guildRoleIds: Object.freeze(Array.isArray(guildRoleIds) ? guildRoleIds.map(String) : []),
     discordRolesCheckedAt: row.discordRolesCheckedAt,

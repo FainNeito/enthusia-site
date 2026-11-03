@@ -95,14 +95,14 @@
 <div class="wrap stack">
 <div class="tab-head" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
 <div class="tabs" role="group" aria-label="Choose a leaderboard" style="display: flex; flex-wrap: wrap; gap: 12px">
-<button class="chip" type="button" aria-pressed="false" data-switch="board" data-value="playtime">Playtime</button>
-<button class="chip" type="button" aria-pressed="true" data-switch="board" data-value="balance">Balance</button>
+<button class="chip" type="button" aria-pressed="true" data-switch="board" data-value="playtime">Playtime</button>
+<button class="chip" type="button" aria-pressed="false" data-switch="board" data-value="balance">Balance</button>
 <button class="chip" type="button" aria-pressed="false" data-switch="board" data-value="guilds">Guilds</button>
 <button class="chip" type="button" aria-pressed="false" data-switch="board" data-value="donors">Top Donors</button>
 </div>
 <p style="display: flex; align-items: center; gap: 12px; color: var(--good)"><span class="live"></span>Captured server data — 12 October 2026</p>
 </div>
-<div class="swap board-panel hide" data-switch-panel="board" data-value="playtime" data-board="playtime-active-all" data-limit="10" data-layout="podium">
+<div class="swap board-panel" data-switch-panel="board" data-value="playtime" data-board="playtime-active-all" data-limit="10" data-layout="podium">
 <p class="muted">Top players by active playtime.</p>
 <div class="board-body">
 <div class="top3-wrap"><h2 class="top3-heading">Top 3</h2><div class="podium staff" data-board-podium aria-label="Top three" hidden></div></div>
@@ -113,7 +113,7 @@
 </div>
 </div>
 </div>
-<div class="swap board-panel" data-switch-panel="board" data-value="balance" data-board="balance-active-all" data-limit="10" data-layout="podium">
+<div class="swap board-panel hide" data-switch-panel="board" data-value="balance" data-board="balance-active-all" data-limit="10" data-layout="podium">
 <p class="muted">Richest players on the server.</p>
 <div class="board-body">
 <div class="top3-wrap"><h2 class="top3-heading">Top 3</h2><div class="podium staff" data-board-podium aria-label="Top three" hidden></div></div>

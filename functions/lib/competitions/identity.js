@@ -258,7 +258,7 @@ export async function getCompetitionIdentitySession(request, db, now = new Date(
     networkAccounts: networkAccountsEnabled(env),
     networkAccountsUnavailable,
     discordGuildMember,
-    guildRoleIds: Object.freeze(Array.isArray(guildRoleIds) ? guildRoleIds.map(String) : []),
+    guildRoleIds: Object.freeze(guildRoleIds.map(String)),
     discordRolesCheckedAt: row.discordRolesCheckedAt,
     expiresAt: row.expiresAt,
     authenticatedAt: row.authenticatedAt,

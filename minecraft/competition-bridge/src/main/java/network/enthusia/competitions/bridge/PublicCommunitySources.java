@@ -28,9 +28,13 @@ final class PublicCommunitySources {
             throw new IllegalStateException("Bounty currency is unverified");
         }
         Plugin provider = enabled("NotBounties");
-        Class<?> manager = Class.forName("me.jadenp.notbounties.utils.DataManager", true, provider.getClass().getClassLoader());
-        Object all = manager.getMethod("getAllBounties", int.class).invoke(null, -1);
-        return projectBounties(collection(all), Instant.now());
+        Class<?> manager = Class.forName("me.jadenp.notbounties.utils.BountyManager", true, provider.getClass().getClassLoader());
+        return projectBounties(publicBounties(manager), Instant.now());
+    }
+    static Collection<?> publicBounties(Class<?> manager) throws Exception {
+        // NotBounties excludes configured hidden names from its public view.
+        // Fail closed if the installed provider cannot supply that view.
+        return collection(manager.getMethod("getPublicBounties", int.class).invoke(null, -1));
     }
     private Map<String, Object> achievements() throws Exception {
         Plugin provider = enabled("EnthusiaAdvancements");

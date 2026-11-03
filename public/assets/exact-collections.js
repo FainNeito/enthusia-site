@@ -1,7 +1,9 @@
 import { api,el } from './community-dom.js';
 import { notice } from './exact-markup.js';
 import { createHistoryOrder } from './history-order.js';
-const kind=document.body.dataset.exactCollection,preview=document.documentElement.hasAttribute('data-preview-root');
+import { restoreTimelineScreenshots } from './timeline-screenshots.js';
+const kind=document.body.dataset.exactCollection,demo=kind==='timeline'&&new URL(location.href).searchParams.get('timeline-restore-demo')==='1';
+const preview=document.documentElement.hasAttribute('data-preview-root')&&!demo;
 const controls=new Map(['timeline','changelog','roadmap','halloffame','creators','museum','achievements'].map(name=>[name,new URL('./exact-controls/'+name+'.js',import.meta.url)]));
 const prefixes=new Map([['timeline','e'],['changelog','l'],['roadmap','i'],['halloffame','t'],['creators','vd'],['museum','m'],['achievements','t']]);
 const templates=new Map([...document.querySelectorAll('template[data-collection-template]')].map(node=>[Number(node.dataset.variant),node]));
@@ -85,8 +87,11 @@ async function start(){
       const group=kind==='timeline'?tag(item,['dev','beta1','beta2','ch1','ch2'],'ch2'):kind==='roadmap'?tag(item,['live','next','later'],'later'):kind==='halloffame'?tag(item,['ch2','ch1','beta'],'ch2'):null;
       const original=preview?templates.get(item.designIndex)??template:group?[...templates.values()].find(node=>node.dataset.group===group)??template:template;if(!original)continue;
       const node=original.content.firstElementChild.cloneNode(true),prefix=prefixes.get(kind);node.dataset.apiRecord='';
+      if(kind==='timeline'&&!preview)for(const shot of node.querySelectorAll('.ev-shot'))shot.remove();
       for(const element of [node,...node.querySelectorAll('*')])for(const attr of [...element.attributes])if(attr.name.startsWith('data-b-')||attr.name.startsWith('data-on-')){let value=attr.value.replace(/(vd|[eilmt])\d+/g,(value,family)=>family===prefix?prefix+index:value);if(kind==='museum')value=value.replace(/mk\d+/g,'mk'+index);element.setAttribute(attr.name,value);}
-      populate(node,item);original.parentElement.insertBefore(node,original);
+      populate(node,item);
+      if(kind==='timeline'&&!preview)restoreTimelineScreenshots(node,item,templates);
+      original.parentElement.insertBefore(node,original);
       if(kind==='timeline'||kind==='changelog')historyEntries.push({date:historyDate(item,node),node,era:node.closest('.era')});
     }
     if(!preview){

@@ -67,6 +67,12 @@ const groups = [
 function previewApi(url) {
   if(url.pathname.startsWith('/api/community/')){
     const parts=url.pathname.slice('/api/community/'.length).split('/');
+    if(parts[0]==='timeline'&&new URL(location.href).searchParams.get('timeline-restore-demo')==='1'){
+      return nativeFetch(new URL('timeline-published-capture.json',root)).then(response=>{
+        if(!response.ok)throw new Error('Timeline snapshot unavailable');
+        return response.json();
+      }).then(snapshot=>json(snapshot));
+    }
     if(parts[0]==='bounties'&&new URL(location.href).searchParams.get('bounty-feed')==='offline')return json({error:'community_service_unavailable'},503);
     if(parts[0]==='warzone'){
       const state=new URL(location.href).searchParams.get('warzone-state')??'captured';
@@ -127,6 +133,7 @@ window.turnstile={render(container,options){container.textContent='Preview verif
 window.WebSocket=class {constructor(){this.readyState=0;}addEventListener(){}removeEventListener(){}close(){this.readyState=3;}send(){}};
 const banner=document.createElement('aside');banner.className='preview-banner';banner.setAttribute('aria-label','Preview controls');
 const label=document.createElement('strong');label.textContent='Combined preview';const note=document.createElement('span');note.textContent='Sample data · actions are not saved';
+if(new URL(location.href).searchParams.get('timeline-restore-demo')==='1')note.textContent='Published timeline snapshot from 3 Nov 2026 · not live · actions are not saved';
 if(new URL(location.href).searchParams.get('bounty-feed')==='offline')note.textContent='Simulated bounty feed outage · no live data';
 const select=document.createElement('select');select.setAttribute('aria-label','Preview persona');for(const role of ['visitor','player','staff']){const opt=new Option(role.charAt(0).toUpperCase()+role.slice(1),role);opt.selected=role===persona;select.append(opt);}select.addEventListener('change',()=>{sessionStorage.setItem('enthusia-preview-persona',select.value);location.reload();});
 banner.append(label,note,select);if(document.body)document.body.prepend(banner);else document.addEventListener("DOMContentLoaded",()=>document.body.prepend(banner),{once:true});

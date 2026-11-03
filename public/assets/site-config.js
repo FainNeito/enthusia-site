@@ -215,12 +215,9 @@ window.ENTHUSIA = {
       { name: "Borlyn", username: "Borlyn", role: "Admin" },
       { name: "Toxik", username: "ToxikFlame11", role: "Admin" },
       { name: "Badger", username: "BadgersMC", role: "Developer" },
-      { name: "Demimeow", username: "Demimeow", role: "Developer" },
-      { name: "Orbitz", username: "OrbitzX", role: "Developer" },
       { name: "BoggersTheFish", username: "BoggersTheFish", role: "Developer" },
       { name: "Bob", username: "SirBobertt", role: "Mod" },
       { name: "Rafffff", username: "Rafffff3282", role: "Mod" },
-      { name: "RealReloadCoded", username: "RealReloadCoded", role: "Helper" },
       {
         name: "aquariom",
         username: "aquariom",

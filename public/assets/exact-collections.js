@@ -3,7 +3,9 @@ import { notice } from './exact-markup.js';
 import { createHistoryOrder } from './history-order.js';
 import { restoreTimelineScreenshots } from './timeline-screenshots.js';
 import { timelineDisplayBody } from './timeline-content.js';
-const kind=document.body.dataset.exactCollection,demo=kind==='timeline'&&new URL(location.href).searchParams.get('timeline-restore-demo')==='1';
+import { renderHallOfFame } from './halloffame-render.js';
+const kind=document.body.dataset.exactCollection,params=new URL(location.href).searchParams;
+const demo=kind==='timeline'&&params.get('timeline-restore-demo')==='1'||kind==='halloffame'&&params.get('halloffame-live-demo')==='1';
 const preview=document.documentElement.hasAttribute('data-preview-root')&&!demo;
 const controls=new Map(['timeline','changelog','roadmap','halloffame','creators','museum','achievements'].map(name=>[name,new URL('./exact-controls/'+name+'.js',import.meta.url)]));
 const prefixes=new Map([['timeline','e'],['changelog','l'],['roadmap','i'],['halloffame','t'],['creators','vd'],['museum','m'],['achievements','t']]);
@@ -81,6 +83,11 @@ async function start(){
       const credits=items.filter(item=>item.category==='Media rank holders');
       items=items.filter(item=>item.category!=='Media rank holders');
       renderCreatorCredits(sections.find(section=>section.getAttribute('aria-label')==='The Media rank'),credits);
+    }
+    if(kind==='halloffame'&&!preview){
+      window.EnthusiaDesignModel=renderHallOfFame(items,templates);
+      const script=document.createElement('script');script.src=controls.get(kind).href;
+      script.onerror=()=>notice('Page controls are unavailable.');document.body.append(script);return;
     }
     if(kind==='achievements'&&!preview&&data.curated!==true){renderAchievementDefinitions(sections[1],items,data);return;}
     if(!items.length){const section=sections[1];if(section){section.hidden=false;section.replaceChildren(el('div',{class:'panel exact-empty'},[el('p',{text:'No published records yet.'})]));}return;}

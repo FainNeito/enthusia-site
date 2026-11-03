@@ -75,12 +75,15 @@ final class CommunityFeedHttpServer implements AutoCloseable {
         if (parts.length < 1 || parts.length > 50) throw new IllegalArgumentException("Invalid players count");
         List<UUID> result = new java.util.ArrayList<>();
         for (String part : parts) {
-            if (!part.matches("[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}")) throw new IllegalArgumentException("Invalid UUID");
-            UUID id = UUID.fromString(part);
-            if (result.contains(id)) throw new IllegalArgumentException("Duplicate UUID");
-            result.add(id);
+            addRequestedPlayer(result, part);
         }
         return List.copyOf(result);
+    }
+    private static void addRequestedPlayer(List<UUID> result, String part) {
+        if (!part.matches("[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}")) throw new IllegalArgumentException("Invalid UUID");
+        UUID id = UUID.fromString(part);
+        if (result.contains(id)) throw new IllegalArgumentException("Duplicate UUID");
+        result.add(id);
     }
     private synchronized byte[] snapshot(String kind) throws Exception {
         long now = System.currentTimeMillis();

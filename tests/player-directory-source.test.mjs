@@ -4,6 +4,18 @@ import { readPublicPlayerDirectory } from '../functions/lib/player-directory-sou
 const a='02f2a966-6e38-4583-9d57-a04f8984af35',b='0a51c4ef-89b4-4560-ac2f-1f554ae28add';
 const now=Date.now(),at=new Date(now-60000).toISOString();
 const bucket=data=>({get:async()=>({json:async()=>data})});
+test('achievement export joins only returned players and preserves unknown for omitted players',async()=>{
+  const env={BALANCE_LEADERBOARDS:bucket({generatedAt:at,players:[{uuid:a,username:'Player',value:1},{uuid:b,username:'Other',value:2}]}),COMMUNITY_PLAYER_ACHIEVEMENTS_API_URL:'https://api.example/players',COMMUNITY_PLAYER_ACHIEVEMENTS_API_TOKEN:'x'.repeat(32)};
+  const result=await readPublicPlayerDirectory(env,now,async(url,options)=>{
+    assert.equal(options.headers.authorization,'Bearer '+'x'.repeat(32));
+    assert.deepEqual(new URL(url).searchParams.get('players').split(',').sort(),[a,b].sort());
+    return Response.json({generatedAt:at,items:[{id:a,achievementsKnown:true,achievements:[],private:'secret'}]});
+  });
+  assert.equal(result.items.find(row=>row.id===a).achievementsKnown,true);
+  assert.deepEqual(result.items.find(row=>row.id===a).achievements,[]);
+  assert.notEqual(result.items.find(row=>row.id===b).achievementsKnown,true);
+  assert.equal(JSON.stringify(result).includes('secret'),false);
+});
 test('real boards join by UUID and convert active minutes to hours without exporting private fields',async()=>{
   const env={PLAYTIME_LEADERBOARDS:bucket({generatedAt:at,unit:'minutes',players:[{uuid:a,username:'Player',value:90,stats:{activeMinutes:90},lastSeenAt:'private',ip:'private'}]}),BALANCE_LEADERBOARDS:bucket({generatedAt:at,players:[{uuid:a,username:'Player',value:42},{uuid:b,username:'Other',value:7}]})};
   const result=await readPublicPlayerDirectory(env,now);assert.equal(result.items.length,2);

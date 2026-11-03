@@ -12,16 +12,43 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 
 /** Optional public provider API adapters. Never traverse fields or write provider state. */
-final class PublicCommunitySources {
+final class PublicCommunitySources implements CommunityFeedHttpServer.Source {
     private final Plugin bridge;
     PublicCommunitySources(Plugin bridge) { this.bridge = bridge; }
 
-    Map<String, Object> read(String kind) throws Exception {
+    public Map<String, Object> read(String kind) throws Exception {
         return MainThreadBridge.call(bridge, 4000, () -> switch (kind) {
             case "bounties" -> bounties();
             case "achievements" -> achievements();
             default -> throw new IllegalArgumentException("Unsupported community source");
         });
+    }
+    public synchronized Map<String, Object> readPlayers(List<UUID> players) throws Exception {
+        return MainThreadBridge.call(bridge, 4000, () -> {
+            Plugin provider = enabled("EnthusiaAdvancements");
+            Object snapshot = provider.getClass().getMethod("websitePlayerAchievements", List.class).invoke(provider, players);
+            if (!(snapshot instanceof Map<?, ?> map)) throw new IllegalStateException("Invalid player achievement provider");
+            return projectPlayerAchievements(map, players);
+        });
+    }
+    static Map<String, Object> projectPlayerAchievements(Map<?, ?> snapshot, List<UUID> requested) {
+        Instant timestamp = Instant.parse(publicText(snapshot.get("generatedAt"), 64));
+        Collection<?> rows = collection(snapshot.get("items"));
+        if (rows.size() > requested.size()) throw new IllegalArgumentException("Player limit exceeded");
+        java.util.Set<UUID> seen = new java.util.HashSet<>();
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (Object value : rows) {
+            if (!(value instanceof Map<?, ?> row) || !Boolean.TRUE.equals(row.get("achievementsKnown"))) throw new IllegalArgumentException("Invalid player achievements");
+            String rawId = publicText(row.get("id"), 36);
+            UUID id = UUID.fromString(rawId);
+            if (!id.toString().equalsIgnoreCase(rawId) || !requested.contains(id) || !seen.add(id)) throw new IllegalArgumentException("Invalid player identity");
+            Collection<?> names = collection(row.get("achievements"));
+            if (names.size() > 200) throw new IllegalArgumentException("Achievement limit exceeded");
+            List<String> projected = new ArrayList<>();
+            for (Object name : names) projected.add(publicText(name, 80));
+            items.add(Map.of("id", id.toString(), "achievementsKnown", true, "achievements", projected));
+        }
+        return Map.of("generatedAt", timestamp.toString(), "limited", true, "items", items);
     }
     private Map<String, Object> bounties() throws Exception {
         if (!"RAW_GOLD".equals(bridge.getConfig().getString("community-feeds.bounty-currency"))) {

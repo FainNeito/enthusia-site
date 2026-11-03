@@ -7,11 +7,37 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CommunityFeedHttpServerTest {
+    @Test void requestedPlayerFeedRequiresTokenRejectsInvalidQueriesAndDoesNotCacheAcrossRequests() throws Exception {
+        int port; try (var socket=new ServerSocket(0)) { port=socket.getLocalPort(); }
+        String token="test-only-"+"a".repeat(32); AtomicInteger captures=new AtomicInteger();
+        var server=new CommunityFeedHttpServer(port,token,new CommunityFeedHttpServer.Source() {
+            public Map<String,Object> read(String kind) { return Map.of(); }
+            public Map<String,Object> readPlayers(List<UUID> players) { captures.incrementAndGet(); return Map.of("count",players.size()); }
+        });
+        server.start();
+        try {
+            HttpClient client=HttpClient.newHttpClient();String base="http://127.0.0.1:"+port+"/api/community/player-achievements";
+            String id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+            java.util.function.BiFunction<String,Boolean,HttpResponse<String>> get=(query,auth)->{
+                try { var request=HttpRequest.newBuilder(URI.create(base+query)); if(auth)request.header("Authorization","Bearer "+token);
+                    return client.send(request.build(),HttpResponse.BodyHandlers.ofString()); }
+                catch(Exception failure) { throw new IllegalStateException(failure); }
+            };
+            assertEquals(401,get.apply("?players="+id,false).statusCode());
+            assertEquals(400,get.apply("?players="+id+","+id.toUpperCase(),true).statusCode());
+            assertEquals(400,get.apply("?players="+id+"&extra=1",true).statusCode());
+            assertEquals(200,get.apply("?players="+id,true).statusCode());
+            assertEquals(200,get.apply("?players="+id,true).statusCode());
+            assertEquals(2,captures.get());
+        } finally { server.close(); }
+    }
     @Test void publicRoutesEnforceAuthenticationMethodPathAndCacheWithoutDroppingNulls() throws Exception {
         int port;
         try (var socket = new ServerSocket(0)) { port = socket.getLocalPort(); }

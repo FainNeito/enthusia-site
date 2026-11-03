@@ -57,3 +57,20 @@ test('fresh authoritative guild capture updates stored profiles without refreshi
   const result=await enrichStoredPlayerGuilds(snapshot,{GUILDS_DIRECTORY_API_URL:'https://guilds.example/directory',GUILDS_API_BEARER:'secret'},now,async()=>Response.json(payload));
   assert.equal(result.items[0].guildMemberships[0].name,'Current');assert.equal(result.sourceUpdatedAt,old);assert.equal(result.generatedAt,at);
 });
+
+test('achievement enrichment joins known results to full profiles without replacing existing progress or refreshing old stats',async()=>{
+  const {enrichPlayerAchievements}=await import('../functions/lib/player-directory-source.js');
+  const old=new Date(now-3600000).toISOString();
+  const snapshot={generatedAt:old,items:[{id:a,name:'Player',balance:5},{id:b,name:'Other',achievementsKnown:true,achievements:['Existing']}]};
+  const env={COMMUNITY_PLAYER_ACHIEVEMENTS_API_URL:'https://api.example/players',COMMUNITY_PLAYER_ACHIEVEMENTS_API_TOKEN:'t'.repeat(32)};
+  const result=await enrichPlayerAchievements(snapshot,env,now,async url=>{
+    assert.equal(url.searchParams.get('players'),a);
+    return Response.json({generatedAt:at,items:[{id:a,achievementsKnown:true,achievements:['New']}]});
+  });
+  assert.deepEqual(result.items[0].achievements,['New']);
+  assert.deepEqual(result.items[1].achievements,['Existing']);
+  assert.equal(result.generatedAt,old);
+  assert.equal(snapshot.items[0].achievementsKnown,undefined);
+  const unavailable=await enrichPlayerAchievements(snapshot,env,now,async()=>{throw new Error('offline')});
+  assert.equal(unavailable,snapshot);
+});

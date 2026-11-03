@@ -5,6 +5,39 @@
   --green:#1c7a32;--yellow:#8a5a00;--red:#b3201a;--shadow:8px 8px 0 #e6bb65;
   font-family:"Minecraft","Courier New",monospace;font-size:16px;line-height:24px;color:var(--text)
 }
+
+/* The page's decorative .live square must not style the market status container. */
+.market-page-root .market-connection-status {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:4px 8px;
+  width:auto;
+  height:auto;
+  min-height:32px;
+  max-width:100%;
+  box-sizing:border-box;
+  padding:4px 10px;
+  border:3px solid #4a0b08;
+  background:#7d120e;
+  color:#fff8e6;
+  font-size:14px;
+  line-height:20px;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  animation:none;
+}
+.market-page-root .market-connection-status #market-last-updated { color:#fff8e6; }
+.market-page-root .market-connection-status .connection-dot {
+  flex:0 0 9px;
+  width:9px;
+  height:9px;
+  border-radius:0;
+}
+.market-page-root .filter-meta { flex-wrap:wrap; gap:8px 16px; }
+@media(max-width:600px) {
+  .market-page-root .market-connection-status { margin-left:0; }
+}
 @scope (.market-page-root){
   [hidden]{display:none!important}
   button,input,select{font:inherit}

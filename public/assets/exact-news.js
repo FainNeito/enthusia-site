@@ -91,7 +91,8 @@ async function editor(){
     const records=await api('admin/news'),requested=new URLSearchParams(location.search).get('slug');
     const record=records.items.find(item=>item.slug===requested)??(document.documentElement.hasAttribute('data-preview-root')?records.items[0]:null);
     if(record){title.value=record.title;body.value=document.documentElement.hasAttribute('data-preview-root')&&!requested?records.editorDraft??record.body:record.body;category=record.category;slug=record.slug;revision=record.revision;cover=record.image??'';pin.checked=document.documentElement.hasAttribute('data-preview-root')&&!requested||record.pinned===true;ping.checked=document.documentElement.hasAttribute('data-preview-root');for(const option of document.querySelectorAll('[data-on-click^="pickC"]'))option.setAttribute('aria-pressed',String(option.dataset.onClick==='pickC'+category));}
-  }catch(error){message.hidden=false;message.textContent='Publishing requires an authorized staff account. '+error.message;one('[data-on-click="publish"]').disabled=true;if(draft)draft.disabled=true;}
+    one('[data-news-add-image]').disabled=false;one('[data-news-add-cover]').disabled=false;
+  }catch(error){message.hidden=false;message.textContent='Publishing requires an authorized staff account. '+error.message;mediaStatus.textContent='Sign in with an authorized staff account to upload images.';one('[data-on-click="publish"]').disabled=true;if(draft)draft.disabled=true;}
   draw();
 }
 (page==='news'?reader():editor()).catch(error=>notice(error.message));

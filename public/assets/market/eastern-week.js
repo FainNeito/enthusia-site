@@ -1,4 +1,3 @@
-const DAY=86400000;
 const calendar=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
 const clock=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',hourCycle:'h23'});
 function parts(date){return Object.fromEntries(calendar.formatToParts(date).map(part=>[part.type,part.value]));}

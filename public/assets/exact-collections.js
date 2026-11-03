@@ -2,6 +2,7 @@ import { api,el } from './community-dom.js';
 import { notice } from './exact-markup.js';
 import { createHistoryOrder } from './history-order.js';
 import { restoreTimelineScreenshots } from './timeline-screenshots.js';
+import { timelineDisplayBody } from './timeline-content.js';
 const kind=document.body.dataset.exactCollection,demo=kind==='timeline'&&new URL(location.href).searchParams.get('timeline-restore-demo')==='1';
 const preview=document.documentElement.hasAttribute('data-preview-root')&&!demo;
 const controls=new Map(['timeline','changelog','roadmap','halloffame','creators','museum','achievements'].map(name=>[name,new URL('./exact-controls/'+name+'.js',import.meta.url)]));
@@ -26,11 +27,12 @@ function model(items){
 }
 function populate(node,item){
   if(preview)return;
+  const body=kind==='timeline'?timelineDisplayBody(item.body):item.body;
   const title=node.querySelector('h2,h3,.vtitle')??node.querySelector('strong,b,.tag'),description=node.querySelector('p'),image=node.querySelector('img');
   for(const leaf of [...node.querySelectorAll('*')])if(!leaf.children.length&&!['IMG','BUTTON'].includes(leaf.tagName))leaf.textContent='';
   if(title)title.textContent=item.title??item.name;
-  if(description)description.textContent=item.body??item.description??'';
-  else if(item.body)(node.querySelector('.panel')??node).append(el('p',{text:item.body,style:'white-space:pre-wrap'}));
+  if(description)description.textContent=body??item.description??'';
+  else if(body)(node.querySelector('.panel')??node).append(el('p',{text:body,style:'white-space:pre-wrap'}));
   for(const list of node.querySelectorAll('ul'))list.replaceChildren();
   for(const anchor of node.querySelectorAll('a')){anchor.removeAttribute('href');anchor.textContent='';}
   if(item.target&&node.tagName==='A')node.href=item.target;
@@ -40,7 +42,7 @@ function populate(node,item){
   if(kind==='museum'){const map=node.querySelector('.map');if(map){map.className='map';map.style.backgroundImage=item.image?'url("'+item.image+'")':'none';map.style.backgroundSize='contain';}node.querySelector('button')?.setAttribute('aria-label',item.title);const label=node.querySelector(':scope>span');if(label)label.textContent=item.title;}
   if(kind==='timeline'||kind==='changelog'){
     const date=node.querySelector('.ev-date'),value=new Date(item.date);if(date)date.replaceChildren(el('b',{text:item.date?value.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}):'Undated'}),el('span',{text:item.date?value.getUTCFullYear():''}));
-    if(item.verification!=='verified')node.querySelector('.ev-card')?.append(el('span',{class:'tag tag-plain',text:'Awaiting source verification'}));
+    if(kind!=='timeline'&&item.verification!=='verified')node.querySelector('.ev-card')?.append(el('span',{class:'tag tag-plain',text:'Awaiting source verification'}));
   }
 }
 function renderAchievementDefinitions(section,items,data){

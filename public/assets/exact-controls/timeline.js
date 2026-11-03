@@ -17,11 +17,11 @@ v.togMob = function () { self.setState({ mob: !st.mob }); };
 
 function timelineOrderValues(self,st,v,on){
     var newest = st.newest === undefined ? true : !!st.newest;
-    v.revCls = newest ? 'rev' : '';
+    v.revCls = '';
     v.oOld = on(!newest);
     v.oNew = on(newest);
-    v.goOld = function () { self.setState({ newest: false }); };
-    v.goNew = function () { self.setState({ newest: true }); };
+    v.goOld = function () { window.EnthusiaHistoryOrder('oldest'); self.setState({ newest: false }); };
+    v.goNew = function () { window.EnthusiaHistoryOrder('newest'); self.setState({ newest: true }); };
 }
 
 class Component extends window.DesignController {

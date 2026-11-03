@@ -1,10 +1,18 @@
 import { api,el } from './community-dom.js';
 import { notice } from './exact-markup.js';
+import { createHistoryOrder } from './history-order.js';
 const kind=document.body.dataset.exactCollection,preview=document.documentElement.hasAttribute('data-preview-root');
 const controls=new Map(['timeline','changelog','roadmap','halloffame','creators','museum','achievements'].map(name=>[name,new URL('./exact-controls/'+name+'.js',import.meta.url)]));
 const prefixes=new Map([['timeline','e'],['changelog','l'],['roadmap','i'],['halloffame','t'],['creators','vd'],['museum','m'],['achievements','t']]);
 const templates=new Map([...document.querySelectorAll('template[data-collection-template]')].map(node=>[Number(node.dataset.variant),node]));
 function tag(item,allowed,fallback){return item.tags?.find(value=>allowed.includes(value))??fallback;}
+function historyDate(item,node){
+  if(!preview||item.date)return item.date;
+  const date=node.querySelector('.ev-date');
+  const day=date?.querySelector('b')?.textContent?.trim(),year=date?.querySelector('span')?.textContent?.trim();
+  const value=Date.parse(`${day??''} ${year??''} UTC`);
+  return Number.isFinite(value)?new Date(value).toISOString():null;
+}
 function model(items){
   if(kind==='timeline')return items.map(item=>[tag(item,['dev','beta1','beta2','ch1','ch2'],'ch2'),item.category?.toLowerCase()??'milestone']);
   if(kind==='changelog')return items.map(item=>[item.date?String(new Date(item.date).getUTCFullYear()):'2026',item.tags??[],(item.title+' '+item.body).toLowerCase()]);
@@ -72,12 +80,14 @@ async function start(){
     }
     if(kind==='achievements'&&!preview&&data.curated!==true){renderAchievementDefinitions(sections[1],items,data);return;}
     if(!items.length){const section=sections[1];if(section){section.hidden=false;section.replaceChildren(el('div',{class:'panel exact-empty'},[el('p',{text:'No published records yet.'})]));}return;}
+    const historyEntries=[];
     for(const [index,item]of items.entries()){
       const group=kind==='timeline'?tag(item,['dev','beta1','beta2','ch1','ch2'],'ch2'):kind==='roadmap'?tag(item,['live','next','later'],'later'):kind==='halloffame'?tag(item,['ch2','ch1','beta'],'ch2'):null;
       const original=preview?templates.get(item.designIndex)??template:group?[...templates.values()].find(node=>node.dataset.group===group)??template:template;if(!original)continue;
       const node=original.content.firstElementChild.cloneNode(true),prefix=prefixes.get(kind);node.dataset.apiRecord='';
       for(const element of [node,...node.querySelectorAll('*')])for(const attr of [...element.attributes])if(attr.name.startsWith('data-b-')||attr.name.startsWith('data-on-')){let value=attr.value.replace(/(vd|[eilmt])\d+/g,(value,family)=>family===prefix?prefix+index:value);if(kind==='museum')value=value.replace(/mk\d+/g,'mk'+index);element.setAttribute(attr.name,value);}
       populate(node,item);original.parentElement.insertBefore(node,original);
+      if(kind==='timeline'||kind==='changelog')historyEntries.push({date:historyDate(item,node),node,era:node.closest('.era')});
     }
     if(!preview){
       for(const section of sections.slice(1)){if(section.querySelector('template[data-collection-template]'))section.hidden=false;}
@@ -87,11 +97,18 @@ async function start(){
       for(const article of document.querySelectorAll('main article'))if(!article.closest('[data-api-record]'))article.hidden=true;
     }
     window.EnthusiaDesignModel=preview?data.model:model(items);
+    if(kind==='timeline'||kind==='changelog'){
+      const eras=kind==='timeline'?[...document.querySelectorAll('.tl > .era')]:[];
+      window.EnthusiaHistoryOrder=createHistoryOrder(historyEntries,eras);
+      window.EnthusiaHistoryOrder('newest');
+    }
     if(kind==='museum'&&!preview){
       const detail=document.querySelector('[data-b-text="dNo"]')?.closest('.panel');
       window.EnthusiaMuseumSelection=index=>{const item=items[index];if(!item||!detail)return;detail.querySelector('h3').textContent=item.title;detail.querySelector(':scope>p:nth-of-type(2)').textContent=item.body;for(const dd of detail.querySelectorAll('dd'))if(!dd.querySelector('[data-b-text]'))dd.textContent='Unavailable';const image=detail.querySelector('.map');image.style.backgroundImage=item.image?'url("'+item.image+'")':'none';image.style.backgroundSize='contain';image.replaceChildren();};
     }
-    const script=document.createElement('script');script.src=controls.get(kind).href;script.onerror=()=>notice('Page controls are unavailable.');document.body.append(script);
+    const script=document.createElement('script');const control=controls.get(kind);
+    if(kind==='timeline'||kind==='changelog')control.searchParams.set('v','history-order-20261102');
+    script.src=control.href;script.onerror=()=>notice('Page controls are unavailable.');document.body.append(script);
   }catch(error){const section=sections[1];if(section){section.hidden=false;section.replaceChildren(el('div',{class:'panel exact-empty'},[el('p',{role:'status',text:error.message})]));}}
 }
 start().catch(error=>notice(error.message));

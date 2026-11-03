@@ -7,7 +7,7 @@ export function loadMarketShareImage(src) {
       img.src = src;
     });
   }
-export function drawMarketShareCard(w, {gold,loadImage=loadMarketShareImage,range,sl,preview}) {
+export function drawMarketShareCard(w, {gold,loadImage=loadMarketShareImage,range,sl,displayName=(name=>name),preview}) {
     var c = document.createElement("canvas"), W = 1200, H = 630;
     c.width = W; c.height = H;
     var x = c.getContext("2d");
@@ -40,11 +40,11 @@ export function drawMarketShareCard(w, {gold,loadImage=loadMarketShareImage,rang
       text(range(-1), 24, "#ffe9a8", W - 80 - x.measureText(range(-1)).width, 80);
       x.fillStyle = "#4a0b08"; x.fillRect(112, 190, 200, 200);
       if (imgs[0]) x.drawImage(imgs[0], 120, 198, 184, 184);
-      text(w.name, 56, "#ffdb2e", 352, 196, "#6b0f0b");
+      text(displayName(w.name), 56, "#ffdb2e", 352, 196, "#6b0f0b");
       text(sl(w.name) + " at the Enthusia Market", 24, "#fff6e0", 352, 270);
       text(gold(w.gold) + " raw gold earned", 40, "#ffffff", 352, 318, "#6b0f0b");
       text(String(w.sales??"Unavailable") + " items sold to " + (w.buyers??"Unavailable") + " players", 24, "#ffdcc8", 352, 378);
-      var best = "Best sellers: " + w.best.map(function (b) { return b[0]; }).join(", ");
+      var best = w.best.length ? "Best sellers: " + w.best.map(function (b) { return b[0]; }).join(", ") : "Item breakdown unavailable";
       text(best, 24, "#ffe9a8", 112, 440);
       text("enthusia.info/market", 24, "#ffdb2e", 112, 560);
       text("PLAY.ENTHUSIA.NET", 24, "#fff6e0", W - 112 - 17 * 15, 560);

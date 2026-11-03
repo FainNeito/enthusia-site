@@ -42,6 +42,7 @@ async function start(){
         model.winners=[{...model.winners[0],name:'stall1',stall:'stall1',week:last,best:[]}];
         model.live=[{...model.live[0],name:'stall2',stall:'stall2'}];
         model.boards={'-1':model.winners};model.stallTotals={stall1:18420,stall2:9860};
+        model.coverageComplete=new URL(location.href).searchParams.get('coverage')!=='partial'; // Sample-only state toggle.
         model.preview=false;
       }
     }

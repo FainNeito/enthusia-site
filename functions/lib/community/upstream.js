@@ -69,7 +69,7 @@ export async function readCommunitySales(env,fetchImpl=fetch,now=Date.now(),curs
     if(input.nextCursor!==null&&input.nextCursor===cursor)return null;
     const checkpointCursor=salesCheckpoint(input,cursor);
     if(input.items.some(row=>!['SELL','BUY'].includes(row.direction)||row.currency!=='RAW_GOLD'))return null;
-    return {kind:'sales',items:input.items.filter(row=>row.direction==='SELL').map(row=>validateSale(row,now)),nextCursor:input.nextCursor,checkpointCursor};
+    return {kind:'sales',items:input.items.filter(row=>row.direction==='SELL').map(row=>validateSale(row,now)),nextCursor:input.nextCursor,checkpointCursor,complete:input.complete===true};
   } catch { return null; }
 }
 function salesCheckpoint(input,cursor) {

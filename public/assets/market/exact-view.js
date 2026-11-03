@@ -83,6 +83,7 @@
 
   function renderWinner() {
     var w = window.EnthusiaMarketHistory.previousMarketWinner(model), el = $("mi-winner");
+    if(!model.preview&&!model.coverageComplete){el.replaceChildren(h("p",{text:"Stall of the Week is unavailable until the sales feed has complete coverage."}));return;}
     if(!w){el.replaceChildren(h("p",{text:"No completed sales week has been exported."}));return;}
     clear(el);
     el.appendChild(h("div", { class: "mi-wk" }, [
@@ -159,6 +160,7 @@
   function streak(name,off) { return (weekBoard(off).find(row=>row.name===name)?.streak)??0; }
   function wins(name) { return winners.filter(w=>w.name===name).length; }
   function streakTag(name, off) {
+    if(!model.preview&&!model.coverageComplete)return null;
     var n = streak(name, off);
     return n >= 2 ? h("span", { class: "tag tag-gold mi-streak", title: "In the top five " + n + " weeks in a row", text: n + " week streak" }) : null;
   }
@@ -185,9 +187,10 @@
   }
   function drawWeeklyContent(list,title,sub,btn,off,guild,rows) {
     title.textContent=guild?"Guild of the week":off===0?"This week so far":"Top stalls";
+    if(!model.preview&&!model.coverageComplete)title.textContent=guild?"Recorded guild sales (partial)":"Recorded stall sales (partial)";
     clear(list);
     if(!rows.length){sub.textContent=range(off);list.appendChild(h("p",{class:"mi-empty",text:model.preview?"No recorded sales for this view.":"No attributed sales are available for this view."}));btn.hidden=true;return;}
-    sub.textContent=weeklyCaption(off,guild,rows[0],daysLeft());
+    sub.textContent=!model.preview&&!model.coverageComplete?"Incomplete coverage; rankings are not final.":weeklyCaption(off,guild,rows[0],daysLeft());
     drawWeekRows(list,rows,guild,off,rows[0].gold);
     btn.hidden=!sid(rows[0].name);
     btn.onclick=function(){showOnMap(sid(rows[0].name));};
@@ -229,6 +232,7 @@
   function renderHall() {
     var el = $("mi-hall");
     clear(el);
+    if(!model.preview&&!model.coverageComplete){el.appendChild(h("p",{class:"mi-empty",text:"Past winners are unavailable while sales coverage is incomplete."}));return;}
     winners.filter(w=>w!==window.EnthusiaMarketHistory.previousMarketWinner(model)).forEach(function (w, i) {
       var card = h("div", { class: "panel mi-card" }, [
         h("p", { class: "tag tag-plain", style: "align-self:flex-start", text: model.preview?range(-(i + 2)):w.week }),
@@ -452,7 +456,7 @@
   var provider = {
     layers: [
       ...(items.length ? [{ id: "prices", label: "Prices", legend: [["cheap", "Cheap: 5% or more under average"], ["fair", "Fair"], ["pricey", "Pricey: 5% or more over"]] }] : []),
-      ...(model.preview || Object.keys(model.stallTotals || {}).length ? [{ id: "gold", label: "Weekly gold", legend: [["hot", "Top 3 buildings"], ["warm", "Next 4"], ["cool", "Quieter"]] }] : [])
+      ...(model.preview || (model.coverageComplete && Object.keys(model.stallTotals || {}).length) ? [{ id: "gold", label: "Weekly gold", legend: [["hot", "Top 3 buildings"], ["warm", "Next 4"], ["cool", "Quieter"]] }] : [])
     ],
     describe: function (layerId, building, byId) {
       var stalls = building.stallIds.map(function (id) { return byId.get(id); }).filter(Boolean);
@@ -507,6 +511,7 @@
 
   function renderStrip() {
     var el = $("mi-strip"), w = winners[0], lead = live[0];
+    if(!model.preview&&!model.coverageComplete){el.replaceChildren(h("a",{class:"btn btn-dark mi-strip-tile",href:"market.html",text:"Explore player shops. Sales insights have incomplete coverage."}));return;}
     if(!w||!lead||!items.length){el.replaceChildren(h("a",{class:"btn btn-dark mi-strip-tile",href:"market.html",text:"Explore player shops. Sales insights await a server export."}));return;}
     var up = window.EnthusiaMarketHistory.marketMovers(items,"up")[0];
     var down = window.EnthusiaMarketHistory.marketMovers(items,"down")[0];

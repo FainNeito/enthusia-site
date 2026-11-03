@@ -123,11 +123,14 @@ async function insights(db,url){
   const history=await db.prepare(`SELECT substr(occurred_at,1,10) AS day,item,SUM(gold)/SUM(quantity) AS price,SUM(quantity) AS quantity FROM market_sales WHERE occurred_at>=? AND item=? GROUP BY day,item ORDER BY day`).bind(new Date(Date.now()-30*86400000).toISOString(),url.searchParams.get('item')??'').all();
   const weeks=await db.prepare(`SELECT DISTINCT ${easternWeekSql} AS week FROM market_sales ORDER BY week DESC LIMIT 52`).all();
   const recent=await db.prepare('SELECT MAX(occurred_at) AS updatedAt,COUNT(*) AS sales FROM market_sales').first();
+  const coverageRow=await db.prepare("SELECT payload,updated_at FROM community_snapshots WHERE kind='sales_coverage'").first();
+  let coverageComplete=false;
+  try{coverageComplete=Boolean(coverageRow&&Date.now()-Date.parse(coverageRow.updated_at)<=900000&&Date.parse(coverageRow.updated_at)<=Date.now()+60000&&JSON.parse(coverageRow.payload).complete===true);}catch{/* Unknown coverage stays incomplete. */}
   const hall=await db.prepare(`SELECT ${easternWeekSql} AS week,${mode} AS name,SUM(gold) AS gold FROM market_sales WHERE ${mode}<>'' GROUP BY week,${mode} ORDER BY week DESC,gold DESC,${mode} ASC LIMIT 1000`).all();
   const topWeeks=topFiveByWeek(hall.results);
   const selected=start.slice(0,10),streaks=consecutiveTopWeeks(leaders.results,topWeeks,start);
   const stallTotals=await db.prepare('SELECT stall,SUM(gold) AS gold FROM market_sales WHERE occurred_at>=? AND occurred_at<? GROUP BY stall').bind(start,end).all();
-  return json({week:start,mode,leaders:leaders.results.map(v=>({...v,streak:streaks.get(v.name)??0})),hallOfFame:[...topWeeks.entries()].filter(([week])=>week<=selected).map(([week,rows])=>({week,winner:rows[0]})),stallTotals:stallTotals.results,prices:prices.results.map(v=>({...v,change:older.has(v.item)?(v.price/older.get(v.item)-1)*100:null})),history:history.results,weeks:weeks.results.map(v=>v.week),updatedAt:recent.updatedAt,sales:recent.sales});
+  return json({week:start,mode,coverageComplete,leaders:leaders.results.map(v=>({...v,streak:streaks.get(v.name)??0})),hallOfFame:[...topWeeks.entries()].filter(([week])=>week<=selected).map(([week,rows])=>({week,winner:rows[0]})),stallTotals:stallTotals.results,prices:prices.results.map(v=>({...v,change:older.has(v.item)?(v.price/older.get(v.item)-1)*100:null})),history:history.results,weeks:weeks.results.map(v=>v.week),updatedAt:recent.updatedAt,sales:recent.sales});
 }
 async function guildFallback(context, db) {
   let snapshot = null;

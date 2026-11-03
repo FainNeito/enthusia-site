@@ -12,6 +12,7 @@ test('ledger model keeps unavailable comparisons and unattributed sales separate
   const data={week:'2026-10-12T00:00:00.000Z',weeks:[],prices:[{item:'diamond',price:14,quantity:3,change:null}],leaders:[],stallTotals:[{stall:'',gold:42}],hallOfFame:[]};
   const model=marketHistoryModel(data,data);
   assert.equal(model.items[0].d7,null);assert.equal(model.items[0].d1,null);
+  assert.equal(model.coverageComplete,false);
   assert.deepEqual(model.stallTotals,{});assert.deepEqual(model.live,[]);
 });
 test('unknown and wrong-direction comparisons cannot become biggest risers or fallers',()=>{

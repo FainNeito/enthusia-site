@@ -36,8 +36,11 @@
     return (v > 0 ? "+" : "") + v.toFixed(1) + "%";
   }
   function dir(p) { return p > 0.05 ? "up" : p < -0.05 ? "down" : "flat"; }
-  function day(d) { return MONTHS[model.preview?d.getMonth():d.getUTCMonth()] + " " + (model.preview?d.getDate():d.getUTCDate()); }
+  function day(d) { return MONTHS[d.getUTCMonth()] + " " + d.getUTCDate(); }
   function head(name, size, cls) {
+    if (!model.preview && window.EnthusiaMarketHistory.marketStallLabel(name)!==name) {
+      return h("img", { class: "px " + (cls || ""), width: size, height: size, alt: "", src: new URL("minecraft/vanilla/textures/generated/item/barrel.png", itemAssetBase).href });
+    }
     var img = h("img", { class: "px " + (cls || ""), width: size, height: size, alt: "" });
     img.src = "https://minotar.net/helm/" + encodeURIComponent(name) + "/" + size;
     return img;
@@ -50,13 +53,10 @@
   /* ---------- week helpers ---------- */
 
   function weekStart(offsetWeeks) {
-    if(!model.preview){return new Date(Date.parse(model.currentWeek)+offsetWeeks*7*86400000);}
-    var d = new Date(); d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offsetWeeks * 7);
-    return d;
+    return window.EnthusiaMarketHistory.marketWeekStart(window.EnthusiaMarketHistory.marketWeekKey(model.preview?new Date():model.currentWeek,offsetWeeks));
   }
   function range(offsetWeeks) {
-    var a = weekStart(offsetWeeks), b = new Date(a); if(model.preview)b.setDate(b.getDate() + 6);else b.setUTCDate(b.getUTCDate() + 6);
+    var a = weekStart(offsetWeeks), b = new Date(a); b.setUTCDate(b.getUTCDate() + 6);
     return day(a) + " - " + day(b);
   }
   function daysLeft() {
@@ -67,12 +67,14 @@
   /* ---------- map link ---------- */
 
   // Names -> the real stall ids, filled in once the market snapshot has loaded.
-  var ownerStall = {}, guildStall = {};
-  function sid(name) { return ownerStall[name] || guildStall[name] || (model.stallTotals?.[name]!==undefined?name:""); }
+  var ownerStall = {}, guildStall = {}, knownStalls = new Set();
+  function sid(name) { return model.preview ? ownerStall[name] || guildStall[name] || "" : window.EnthusiaMarketHistory.marketStallId(name,knownStalls); }
+  function displayName(name) { return model.preview ? name : window.EnthusiaMarketHistory.marketStallLabel(name); }
   function sl(name) { var m = sid(name).match(/\d+/); return m ? "Stall " + m[0] : "Stall"; }
   function showOnMap(id) { if (id && window.EnthusiaMarketMap) window.EnthusiaMarketMap.showStall(id); }
   function mapButton(name, cls) {
     var b = h("button", { class: "btn " + (cls || "btn-gold"), type: "button", text: "Show on the map" });
+    b.disabled = !sid(name);
     b.addEventListener("click", function () { showOnMap(sid(name)); });
     return b;
   }
@@ -81,6 +83,7 @@
 
   function renderWinner() {
     var w = window.EnthusiaMarketHistory.previousMarketWinner(model), el = $("mi-winner");
+    if(!model.preview&&!model.coverageComplete){el.replaceChildren(h("p",{text:"Stall of the Week is unavailable until the sales feed has complete coverage."}));return;}
     if(!w){el.replaceChildren(h("p",{text:"No completed sales week has been exported."}));return;}
     clear(el);
     el.appendChild(h("div", { class: "mi-wk" }, [
@@ -90,8 +93,8 @@
     el.appendChild(h("div", { class: "mi-who" }, [
       head(w.name, 64),
       h("div", {}, [
-        h("h3", { class: "mi-name", text: w.name }),
-        h("p", { class: "mi-sub", text: sl(w.name) })
+        h("h3", { class: "mi-name", text: displayName(w.name) }),
+        model.preview ? h("p", { class: "mi-sub", text: sl(w.name) }) : null
       ])
     ]));
     var dl = h("dl", { class: "meta" });
@@ -101,6 +104,7 @@
     el.appendChild(dl);
     el.appendChild(h("p", { class: "mi-kick", text: "BEST SELLERS" }));
     var list = h("div", { class: "mi-top" });
+    if (!w.best?.length) list.appendChild(h("p", {class:"mi-sub",text:"Item breakdown is not available."}));
     (w.best??[]).forEach(function (b) {
       list.appendChild(h("div", { class: "shop" }, [
         h("span", { text: b[0] + " x" + b[1] }),
@@ -127,7 +131,7 @@
 
   /* ---------- share card: a picture players can post on Discord ---------- */
 
-  function drawCard(w) {return window.EnthusiaMarketDrawShareCard(w,{gold,range,sl,preview:model.preview});}
+  function drawCard(w) {return window.EnthusiaMarketDrawShareCard(w,{gold,range,sl,displayName,preview:model.preview});}
   function buildShare(w, panel) {
     panel.appendChild(h("p", { class: "mi-sub", text: "Making the picture..." }));
     drawCard(w).then(function (canvas) {
@@ -156,6 +160,7 @@
   function streak(name,off) { return (weekBoard(off).find(row=>row.name===name)?.streak)??0; }
   function wins(name) { return winners.filter(w=>w.name===name).length; }
   function streakTag(name, off) {
+    if(!model.preview&&!model.coverageComplete)return null;
     var n = streak(name, off);
     return n >= 2 ? h("span", { class: "tag tag-gold mi-streak", title: "In the top five " + n + " weeks in a row", text: n + " week streak" }) : null;
   }
@@ -166,7 +171,7 @@
         var row = h("div", { class: "mi-rank" + (i === 0 ? " first" : "") }, [
           h("span", { class: "bar", style: "width:0" }),
           h("span", { class: "n", text: "#" + (i + 1) }), who,
-          h("span", { style: "min-width:0;overflow-wrap:anywhere" }, [h("b", { style: "font-weight:400", text: r.name }), h("span", { class: "mi-sub", text: guild ? " · " + (r.stalls??"?") + (r.stalls === 1 ? " stall" : " stalls") : " · " + sl(r.name) }), guild ? null : streakTag(r.name, off)]),
+          h("span", { style: "min-width:0;overflow-wrap:anywhere" }, [h("b", { style: "font-weight:400", text: guild ? r.name : displayName(r.name) }), h("span", { class: "mi-sub", text: guild ? " · " + (r.stalls??"?") + (r.stalls === 1 ? " stall" : " stalls") : model.preview ? " · " + sl(r.name) : "" }), guild ? null : streakTag(r.name, off)]),
           h("span", { class: "g", text: gold(r.gold) + " raw gold" })
         ]);
         list.appendChild(row);
@@ -176,15 +181,16 @@
   }
 
   function weeklyCaption(off,guild,winner,left) {
-    if(off!==0)return guild?winner.name+" won this week.":winner.name+" won this week with stall "+winner.stall+".";
-    if(left<=1)return model.preview?"Ends tonight at 11:59 PM ET.":"Ends tonight in UTC.";
-    return left+(model.preview?" days left. Ends Sunday at 11:59 PM ET.":" days left. Ends Sunday in UTC.");
+    if(off!==0)return guild?winner.name+" won this week.":displayName(winner.name)+" won this week.";
+    if(left<=1)return "Ends Sunday at 11:59 PM Eastern Time.";
+    return left+" days left. Ends Sunday at 11:59 PM Eastern Time.";
   }
   function drawWeeklyContent(list,title,sub,btn,off,guild,rows) {
     title.textContent=guild?"Guild of the week":off===0?"This week so far":"Top stalls";
+    if(!model.preview&&!model.coverageComplete)title.textContent=guild?"Recorded guild sales (partial)":"Recorded stall sales (partial)";
     clear(list);
-    if(!rows.length){sub.textContent=range(off);list.appendChild(h("p",{class:"mi-empty",text:"No recorded sales for this view."}));btn.hidden=true;return;}
-    sub.textContent=weeklyCaption(off,guild,rows[0],daysLeft());
+    if(!rows.length){sub.textContent=range(off);list.appendChild(h("p",{class:"mi-empty",text:model.preview?"No recorded sales for this view.":"No attributed sales are available for this view."}));btn.hidden=true;return;}
+    sub.textContent=!model.preview&&!model.coverageComplete?"Incomplete coverage; rankings are not final.":weeklyCaption(off,guild,rows[0],daysLeft());
     drawWeekRows(list,rows,guild,off,rows[0].gold);
     btn.hidden=!sid(rows[0].name);
     btn.onclick=function(){showOnMap(sid(rows[0].name));};
@@ -226,12 +232,13 @@
   function renderHall() {
     var el = $("mi-hall");
     clear(el);
+    if(!model.preview&&!model.coverageComplete){el.appendChild(h("p",{class:"mi-empty",text:"Past winners are unavailable while sales coverage is incomplete."}));return;}
     winners.filter(w=>w!==window.EnthusiaMarketHistory.previousMarketWinner(model)).forEach(function (w, i) {
       var card = h("div", { class: "panel mi-card" }, [
         h("p", { class: "tag tag-plain", style: "align-self:flex-start", text: model.preview?range(-(i + 2)):w.week }),
         h("div", { class: "mi-who" }, [
           head(w.name, 40, "sm"),
-          h("div", {}, [h("b", { text: w.name }), h("span", { class: "mi-sub", text: sl(w.name) })])
+          h("div", {}, [h("b", { text: displayName(w.name) }), model.preview ? h("span", { class: "mi-sub", text: sl(w.name) }) : null])
         ]),
         h("p", { text: gold(w.gold) + " raw gold" }),
         streak(w.name, -(i + 2)) >= 2 ? h("span", { class: "tag tag-gold mi-streak", style: "align-self:flex-start", text: streak(w.name, -(i + 2)) + " week streak" }) : null
@@ -448,8 +455,8 @@
 
   var provider = {
     layers: [
-      { id: "prices", label: "Prices", legend: [["cheap", "Cheap: 5% or more under average"], ["fair", "Fair"], ["pricey", "Pricey: 5% or more over"]] },
-      { id: "gold", label: "Weekly gold", legend: [["hot", "Top 3 buildings"], ["warm", "Next 4"], ["cool", "Quieter"]] }
+      ...(items.length ? [{ id: "prices", label: "Prices", legend: [["cheap", "Cheap: 5% or more under average"], ["fair", "Fair"], ["pricey", "Pricey: 5% or more over"]] }] : []),
+      ...(model.preview || (model.coverageComplete && Object.keys(model.stallTotals || {}).length) ? [{ id: "gold", label: "Weekly gold", legend: [["hot", "Top 3 buildings"], ["warm", "Next 4"], ["cool", "Quieter"]] }] : [])
     ],
     describe: function (layerId, building, byId) {
       var stalls = building.stallIds.map(function (id) { return byId.get(id); }).filter(Boolean);
@@ -462,7 +469,7 @@
       var total = stalls.reduce(function (sum, st) { return sum + goldOf(st); }, 0);
       var totals = window.EnthusiaMarketMap.layout.buildings.map(function (bd) { return bd.stallIds.reduce(function (sum, id) { return sum + goldOf(byId.get(id)); }, 0); }).sort(function (x, y) { return y - x; });
       var bucket = !total ? "none" : total >= totals[2] ? "hot" : total >= totals[6] ? "warm" : "cool";
-      return { bucket: bucket, label: total ? compact(total) : "", line: total ? gold(total) + " raw gold earned this week" : "No sales this week" };
+      return { bucket: bucket, label: total ? compact(total) : "", line: total ? gold(total) + " raw gold attributed this week" : "No attributed sales available this week" };
     }
   };
   function compact(n) { return n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n); }
@@ -476,6 +483,7 @@
     if (!snap || ready) return;
     ready = true;
     snap.stalls.forEach(function (st) {
+      knownStalls.add(st.id);
       if (st.owner.type === "PLAYER" && !ownerStall[st.owner.name]) ownerStall[st.owner.name] = st.id;
       if (st.owner.type === "GUILD" && !guildStall[st.owner.name]) guildStall[st.owner.name] = st.id;
     });
@@ -503,6 +511,7 @@
 
   function renderStrip() {
     var el = $("mi-strip"), w = winners[0], lead = live[0];
+    if(!model.preview&&!model.coverageComplete){el.replaceChildren(h("a",{class:"btn btn-dark mi-strip-tile",href:"market.html",text:"Explore player shops. Sales insights have incomplete coverage."}));return;}
     if(!w||!lead||!items.length){el.replaceChildren(h("a",{class:"btn btn-dark mi-strip-tile",href:"market.html",text:"Explore player shops. Sales insights await a server export."}));return;}
     var up = window.EnthusiaMarketHistory.marketMovers(items,"up")[0];
     var down = window.EnthusiaMarketHistory.marketMovers(items,"down")[0];
@@ -511,11 +520,11 @@
       return h("a", { class: "btn btn-dark mi-strip-tile", href: href }, [h("span", { class: "mi-kick", text: kick })].concat(kids));
     }
     el.appendChild(tile("market.html#stall-week", "STALL OF THE WEEK", [
-      h("span", { class: "mi-who" }, [head(w.name, 40, "sm"), h("span", { class: "mi-strip-big", text: w.name })]),
+      h("span", { class: "mi-who" }, [head(w.name, 40, "sm"), h("span", { class: "mi-strip-big", text: displayName(w.name) })]),
       h("span", { class: "mi-sub", text: gold(w.gold) + " raw gold last week" })
     ]));
     el.appendChild(tile("market.html#stall-week", "LEADING THIS WEEK", [
-      h("span", { class: "mi-who" }, [head(lead.name, 40, "sm"), h("span", { class: "mi-strip-big", text: lead.name })]),
+      h("span", { class: "mi-who" }, [head(lead.name, 40, "sm"), h("span", { class: "mi-strip-big", text: displayName(lead.name) })]),
       h("span", { class: "mi-sub", text: gold(lead.gold) + " raw gold so far" })
     ]));
     if(up)el.appendChild(tile("market.html#item=" + encodeURIComponent(up.name), "BIGGEST RISER", [

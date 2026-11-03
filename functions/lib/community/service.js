@@ -10,6 +10,7 @@ import { readPublicPlayerDirectory, enrichStoredPlayerGuilds } from '../player-d
 import { readCommunityUpstream } from './upstream.js';
 import { salesStatements,snapshotStatement } from './persistence.js';
 import { topFiveByWeek,consecutiveTopWeeks } from './market-history.js';
+import { marketWeekRange } from '../../../public/assets/market/eastern-week.js';
 import { CONTENT_KINDS, SNAPSHOT_KINDS, identifier, validateRecord, decodeRow, publicRecord, projectSnapshot, verifyProducer } from './contracts.js';
 
 const unavailable=()=>json({error:'community_service_unavailable'},503);
@@ -109,26 +110,27 @@ async function ingest(db,request,env){
   try{const result=await db.batch([first,...statements,cleanup]);if(input.kind!=='sales'&&!result[1].meta.changes)return json({error:input.kind==='guildquests'?'stale_quest_snapshot':'stale_snapshot'},409);}catch(error){if(String(error).includes('UNIQUE'))return json({error:'producer_replay'},409);throw error;}
   return json({ok:true,received:input.items.length});
 }
-function weekRange(value){
-  const date=value?new Date(value):new Date();if(!Number.isFinite(date.getTime()))throw new Error('invalid_week');
-  date.setUTCHours(0,0,0,0);date.setUTCDate(date.getUTCDate()-((date.getUTCDay()+6)%7));
-  return [date.toISOString(),new Date(date.getTime()+7*86400000).toISOString()];
-}
+// SQLite has no timezone database. Apply modern US daylight-saving boundaries
+// to the UTC timestamp before grouping each sale by its New York calendar week.
+const easternWeekSql=`date(occurred_at, CASE WHEN julianday(occurred_at)>=julianday(strftime('%Y',occurred_at)||'-03-01','weekday 0','+7 days','+7 hours') AND julianday(occurred_at)<julianday(strftime('%Y',occurred_at)||'-11-01','weekday 0','+6 hours') THEN '-4 hours' ELSE '-5 hours' END,'weekday 0','-6 days')`;
 async function insights(db,url){
-  const [start,end]=weekRange(url.searchParams.get('week'));
+  const [start,end]=marketWeekRange(url.searchParams.get('week'));
   const mode=url.searchParams.get('mode')==='guild'?'guild':'stall';
   const leaders=await db.prepare(`SELECT ${mode} AS name,SUM(gold) AS gold,SUM(quantity) AS quantity,COUNT(DISTINCT stall) AS stalls FROM market_sales WHERE occurred_at>=? AND occurred_at<? AND ${mode}<>'' GROUP BY ${mode} ORDER BY gold DESC,${mode} ASC LIMIT 50`).bind(start,end).all();
   const prices=await db.prepare(`SELECT item,SUM(gold)/SUM(quantity) AS price,SUM(quantity) AS quantity,COUNT(*) AS trades,MAX(occurred_at) AS lastSale FROM market_sales WHERE occurred_at>=? GROUP BY item ORDER BY trades DESC LIMIT 500`).bind(new Date(Date.now()-30*86400000).toISOString()).all();
   const previous=await db.prepare(`SELECT item,SUM(gold)/SUM(quantity) AS price FROM market_sales WHERE occurred_at>=? AND occurred_at<? GROUP BY item`).bind(new Date(Date.now()-60*86400000).toISOString(),new Date(Date.now()-30*86400000).toISOString()).all();
   const older=new Map(previous.results.map(v=>[v.item,v.price]));
   const history=await db.prepare(`SELECT substr(occurred_at,1,10) AS day,item,SUM(gold)/SUM(quantity) AS price,SUM(quantity) AS quantity FROM market_sales WHERE occurred_at>=? AND item=? GROUP BY day,item ORDER BY day`).bind(new Date(Date.now()-30*86400000).toISOString(),url.searchParams.get('item')??'').all();
-  const weeks=await db.prepare("SELECT DISTINCT date(occurred_at,'weekday 0','-6 days') AS week FROM market_sales ORDER BY week DESC LIMIT 52").all();
+  const weeks=await db.prepare(`SELECT DISTINCT ${easternWeekSql} AS week FROM market_sales ORDER BY week DESC LIMIT 52`).all();
   const recent=await db.prepare('SELECT MAX(occurred_at) AS updatedAt,COUNT(*) AS sales FROM market_sales').first();
-  const hall=await db.prepare(`SELECT date(occurred_at,'weekday 0','-6 days') AS week,${mode} AS name,SUM(gold) AS gold FROM market_sales WHERE ${mode}<>'' GROUP BY week,${mode} ORDER BY week DESC,gold DESC,${mode} ASC LIMIT 1000`).all();
+  // A fresh producer flag cannot prove historical coverage or continuity after
+  // a restore. Keep official rankings unavailable until both can be verified.
+  const coverageComplete=false;
+  const hall=await db.prepare(`SELECT ${easternWeekSql} AS week,${mode} AS name,SUM(gold) AS gold FROM market_sales WHERE ${mode}<>'' GROUP BY week,${mode} ORDER BY week DESC,gold DESC,${mode} ASC LIMIT 1000`).all();
   const topWeeks=topFiveByWeek(hall.results);
   const selected=start.slice(0,10),streaks=consecutiveTopWeeks(leaders.results,topWeeks,start);
   const stallTotals=await db.prepare('SELECT stall,SUM(gold) AS gold FROM market_sales WHERE occurred_at>=? AND occurred_at<? GROUP BY stall').bind(start,end).all();
-  return json({week:start,mode,leaders:leaders.results.map(v=>({...v,streak:streaks.get(v.name)??0})),hallOfFame:[...topWeeks.entries()].filter(([week])=>week<=selected).map(([week,rows])=>({week,winner:rows[0]})),stallTotals:stallTotals.results,prices:prices.results.map(v=>({...v,change:older.has(v.item)?(v.price/older.get(v.item)-1)*100:null})),history:history.results,weeks:weeks.results.map(v=>v.week),updatedAt:recent.updatedAt,sales:recent.sales});
+  return json({week:start,mode,coverageComplete,leaders:leaders.results.map(v=>({...v,streak:streaks.get(v.name)??0})),hallOfFame:[...topWeeks.entries()].filter(([week])=>week<=selected).map(([week,rows])=>({week,winner:rows[0]})),stallTotals:stallTotals.results,prices:prices.results.map(v=>({...v,change:older.has(v.item)?(v.price/older.get(v.item)-1)*100:null})),history:history.results,weeks:weeks.results.map(v=>v.week),updatedAt:recent.updatedAt,sales:recent.sales});
 }
 async function guildFallback(context, db) {
   let snapshot = null;

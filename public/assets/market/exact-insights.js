@@ -1,17 +1,18 @@
 import { priceVerdict } from './exact-prices.js';
 import { findMarketItem } from './exact-items.js';
 import { api,el } from '../community-dom.js';
-import { marketHistoryModel,applyMarketHistory,marketMovers,historyPosition,nearestHistoryIndex,previousMarketWinner } from './history-model.js?v=2';
+import { marketHistoryModel,applyMarketHistory,marketMovers,historyPosition,nearestHistoryIndex,previousMarketWinner,marketStallId,marketStallLabel } from './history-model.js?v=3';
 import { drawMarketShareCard } from './share-card.js';
 import { drawHistoryChart } from './history-chart.js';
+import { marketWeekKey,marketWeekStart } from './eastern-week.js';
 const preview=document.documentElement.hasAttribute('data-preview-root');
 window.EnthusiaMarketDesignApi=api;
 window.EnthusiaMarketPriceVerdict=priceVerdict;
 window.EnthusiaMarketFindItem=findMarketItem;
-window.EnthusiaMarketHistory={marketMovers,historyPosition,nearestHistoryIndex,previousMarketWinner};
+window.EnthusiaMarketHistory={marketMovers,historyPosition,nearestHistoryIndex,previousMarketWinner,marketStallId,marketStallLabel,marketWeekKey,marketWeekStart};
 window.EnthusiaMarketDrawShareCard=drawMarketShareCard;
 window.EnthusiaMarketDrawHistoryChart=drawHistoryChart;
-function week(offset=0){const value=new Date();value.setUTCHours(0,0,0,0);value.setUTCDate(value.getUTCDate()-((value.getUTCDay()+6)%7)+offset*7);return value.toISOString().slice(0,10);}
+function week(offset=0){return marketWeekKey(new Date(),offset);}
 async function loadHistory(item){
   if(item.loading||item.loaded)return;item.loading=true;
   try{
@@ -32,11 +33,23 @@ function installLiveLoaders(model){
 async function start(){
   try{
     let model;
-    if(preview){model=await api('market-design');model.preview=true;}
+    if(preview){
+      model=await api('market-design');model.preview=true;
+      // Explicit sample-only mode exercises the production stall-ID presentation.
+      if(new URL(location.href).searchParams.get('market-integrity-demo')==='1'){
+        const now=marketWeekKey(new Date()),last=marketWeekKey(now,-1);
+        model.currentWeek=marketWeekStart(now).toISOString();model.weeks=[now,last];
+        model.winners=[{...model.winners[0],name:'stall1',stall:'stall1',week:last,best:[]}];
+        model.live=[{...model.live[0],name:'stall2',stall:'stall2'}];
+        model.boards={'-1':model.winners};model.stallTotals={stall1:18420,stall2:9860};
+        model.coverageComplete=new URL(location.href).searchParams.get('coverage')!=='partial'; // Sample-only state toggle.
+        model.preview=false;
+      }
+    }
     else {
       const [current,previous]=await Promise.all([api('insights'),api('insights?week='+week(-1))]);
       model=marketHistoryModel(current,previous);installLiveLoaders(model);
-      document.querySelector('#mi-title')?.parentElement.querySelector('p:last-child')?.replaceChildren('Recorded sales, Monday to Sunday in UTC. The completed winner is shown when that week ends.');
+      document.querySelector('#mi-title')?.parentElement.querySelector('p:last-child')?.replaceChildren('Recorded sales, Monday to Sunday Eastern Time. The completed winner is shown when that week ends.');
       for(const label of document.querySelectorAll('.mi-head .h7'))label.textContent='30d change';
       for(const label of document.querySelectorAll('.mi-head .hs'))label.textContent='Recorded days';
       const notes=document.querySelectorAll('#price-tracker .mi-note');
@@ -48,7 +61,7 @@ async function start(){
     // Standings may omit banners; join only public guild profiles, without blocking sales data.
     const guilds=await api('guilds').catch(()=>({items:[]}));
     model.guildBanners=new Map(guilds.items.filter(guild=>guild.banner).map(guild=>[guild.name.toLowerCase(),guild.banner]));
-    const script=document.createElement('script');script.src=new URL('./exact-view.js',import.meta.url).href;document.body.append(script);
+    const script=document.createElement('script');const view=new URL('./exact-view.js',import.meta.url);view.searchParams.set('v','stall-integrity-20261102');script.src=view.href;document.body.append(script);
   }catch(error){for(const id of ['mi-strip','mi-winner','mi-week','mi-rows','mi-detail'])document.getElementById(id)?.replaceChildren(el('p',{class:'mi-empty',role:'status',text:error.message}));}
 }
 start();

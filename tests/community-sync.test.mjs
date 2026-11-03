@@ -14,6 +14,26 @@ test('scheduled sync is disabled by default and performs no requests or writes',
   let calls=0;const result=await runCommunitySync({COMMUNITY_DB:{prepare(){calls++;}}},async()=>{calls++;});
   assert.equal(result.enabled,false);assert.equal(calls,0);
 });
+test('sales coverage stays partial unless the producer explicitly confirms completeness',async()=>{
+  const {db,sql}=database(),env={COMMUNITY_DB:db,COMMUNITY_SYNC_ENABLED:'true',COMMUNITY_SALES_API_URL:'https://source.example/sales'};
+  await runCommunitySync(env,async()=>Response.json({items:[sale()],nextCursor:null,checkpointCursor:'1',complete:false}));
+  let row=sql.prepare("SELECT payload FROM community_snapshots WHERE kind='sales_coverage'").get();
+  assert.equal(JSON.parse(row.payload).complete,false);
+  sql.prepare("UPDATE community_snapshots SET updated_at='2000-01-01T00:00:00.000Z' WHERE kind='sales_coverage'").run();
+  await runCommunitySync(env,async()=>Response.json({items:[],nextCursor:null,checkpointCursor:'1',complete:true}));
+  row=sql.prepare("SELECT payload FROM community_snapshots WHERE kind='sales_coverage'").get();
+  assert.equal(JSON.parse(row.payload).complete,true);
+});
+test('an older overlapping sync cannot replace newer partial coverage with complete',async()=>{
+  const {db,sql}=database(),env={COMMUNITY_DB:db,COMMUNITY_SYNC_ENABLED:'true',COMMUNITY_SALES_API_URL:'https://source.example/sales'};
+  let release,started;const gate=new Promise(resolve=>{release=resolve;}),began=new Promise(resolve=>{started=resolve;});
+  const older=runCommunitySync(env,async()=>{started();await gate;return Response.json({items:[],nextCursor:null,checkpointCursor:'0',complete:true});});
+  await began;await new Promise(resolve=>setTimeout(resolve,5));
+  await runCommunitySync(env,async()=>Response.json({items:[],nextCursor:null,checkpointCursor:'0',complete:false}));
+  release();await older;
+  const row=sql.prepare("SELECT payload FROM community_snapshots WHERE kind='sales_coverage'").get();
+  assert.equal(JSON.parse(row.payload).complete,false);
+});
 test('snapshots preserve source freshness, privacy and newer records when an older export arrives',async()=>{
   const {db,sql}=database(),env={COMMUNITY_DB:db,COMMUNITY_SYNC_ENABLED:'true',COMMUNITY_BOUNTIES_API_URL:'https://source.example/bounties'};
   let generatedAt=new Date(Date.now()-60000).toISOString();

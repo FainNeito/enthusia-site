@@ -217,12 +217,12 @@ test('market insights group sales at Eastern week boundaries across daylight sav
   assert.ok(old.weeks.includes('2026-10-26'));
   assert.ok(old.weeks.includes('2026-11-02'));
 });
-test('market coverage is incomplete by default and when its confirmation is stale',async()=>{
+test('a fresh completeness flag alone cannot establish historical market coverage',async()=>{
   const {db,sql}=database();
   const read=()=>handleCommunity({request:new Request('https://site.example/api/community/insights'),params:{path:'insights'},env:{COMMUNITY_DB:db}},dependencies);
   assert.equal((await (await read()).json()).coverageComplete,false);
   sql.prepare('INSERT INTO community_snapshots(kind,payload,updated_at) VALUES (?,?,?)').run('sales_coverage',JSON.stringify({complete:true}),new Date().toISOString());
-  assert.equal((await (await read()).json()).coverageComplete,true);
+  assert.equal((await (await read()).json()).coverageComplete,false);
   sql.prepare('UPDATE community_snapshots SET updated_at=? WHERE kind=?').run(new Date(Date.now()-3600000).toISOString(),'sales_coverage');
   assert.equal((await (await read()).json()).coverageComplete,false);
 });

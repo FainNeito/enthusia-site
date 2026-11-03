@@ -61,7 +61,7 @@ async function editor(){
     if(!['image/png','image/jpeg'].includes(file.type)||file.size>16*1024*1024)throw new Error('Choose a PNG or JPEG under 16 MB.');
     const objectUrl=URL.createObjectURL(file);try{
       const image=new Image();image.src=objectUrl;await image.decode();
-      if(!image.naturalWidth||!image.naturalHeight||image.naturalWidth*image.naturalHeight>40000000)throw new Error('Image dimensions are too large.');
+      if(!image.naturalWidth||!image.naturalHeight||image.naturalWidth*image.naturalHeight>40*1000*1000)throw new Error('Image dimensions are too large.');
       const scale=Math.min(1,2048/Math.max(image.naturalWidth,image.naturalHeight)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
       const blob=await new Promise(resolve=>canvas.toBlob(resolve,file.type,.9));if(!blob||blob.size>8*1024*1024)throw new Error('Image is too large to upload.');return blob;
     }finally{URL.revokeObjectURL(objectUrl);}
@@ -75,14 +75,14 @@ async function editor(){
   }
   async function save(state){
     if(uploading){mediaStatus.textContent='Wait for the image upload to finish.';return;}
-    const controls=[...document.querySelectorAll('main button')];controls.forEach(node=>node.disabled=true);
+    const controls=[...document.querySelectorAll('main button')],disabled=controls.map(node=>node.disabled);controls.forEach(node=>node.disabled=true);
     try{
       const safeSlug=slug||title.value.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'post-'+Date.now();
       const record=await api('admin/news',{method:'POST',body:JSON.stringify({kind:'news',slug:safeSlug,title:title.value,body:body.value,image:cover,category,status:state,revision,date:new Date().toISOString(),pinned:pin.checked})});
       slug=record.slug;revision=record.revision;message.hidden=false;message.textContent=state==='published'?'Published to News.':'Draft saved.';
       if(ping.checked)message.textContent+=' Discord announcement delivery is not configured.';
       history.replaceState(null,'','?slug='+encodeURIComponent(slug));
-    }catch(error){message.hidden=false;message.textContent=error.message;}finally{controls.forEach(node=>node.disabled=false);}
+    }catch(error){message.hidden=false;message.textContent=error.message;}finally{controls.forEach((node,index)=>node.disabled=disabled[index]);}
   }
   one('[data-on-click="publish"]').addEventListener('click',()=>save('published'));
   const draft=[...document.querySelectorAll('main button')].find(node=>node.textContent==='Save draft');draft?.addEventListener('click',()=>save('draft'));

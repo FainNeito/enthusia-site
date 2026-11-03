@@ -18,17 +18,20 @@ export async function uploadNewsMedia(request,env,actor){
   let data;try{data=await bytes(request,competitionImageLimits().maxBytes);}catch(error){return json({error:error.message},error.message==='image_too_large'?413:400);}
   const inspected=inspectCompetitionImage(data);
   if(!inspected.ok)return json({error:inspected.error},400);
-  const id=crypto.randomUUID().replaceAll('-','');
+  const id=crypto.randomUUID().replace(/-/g,'');
   await env.COMPETITIONS_MEDIA.put(prefix+id,data,{httpMetadata:{contentType:inspected.mimeType},customMetadata:{owner:actor.id}});
   return json({url:'/api/community/news-media/'+id,width:inspected.width,height:inspected.height},201);
 }
 
+async function mayRead(request,env,url,editor){
+  const published=await env.COMMUNITY_DB.prepare("SELECT 1 AS present FROM community_records WHERE kind='news' AND status='published' AND (json_extract(payload,'$.image')=? OR instr(json_extract(payload,'$.body'),?)>0) LIMIT 1").bind(url,url).first();
+  if(published)return true;
+  try{return Boolean(await editor(request,env));}catch{return false;}
+}
 export async function readNewsMedia(request,env,id,editor){
   if(!validId.test(id)||!env.COMMUNITY_DB||!env.COMPETITIONS_MEDIA?.get)return json({error:'not_found'},404);
   const url='/api/community/news-media/'+id;
-  const published=await env.COMMUNITY_DB.prepare("SELECT 1 AS present FROM community_records WHERE kind='news' AND status='published' AND (json_extract(payload,'$.image')=? OR instr(json_extract(payload,'$.body'),?)>0) LIMIT 1").bind(url,url).first();
-  let staff=false;if(!published){try{staff=Boolean(await editor(request,env));}catch{/* Unauthenticated requests cannot read draft media. */}}
-  if(!published&&!staff)return json({error:'not_found'},404);
+  if(!await mayRead(request,env,url,editor))return json({error:'not_found'},404);
   const object=await env.COMPETITIONS_MEDIA.get(prefix+id);if(!object)return json({error:'not_found'},404);
   const type=object.httpMetadata?.contentType;
   if(!['image/png','image/jpeg'].includes(type))return json({error:'not_found'},404);

@@ -38,7 +38,7 @@
   function dir(p) { return p > 0.05 ? "up" : p < -0.05 ? "down" : "flat"; }
   function day(d) { return MONTHS[d.getUTCMonth()] + " " + d.getUTCDate(); }
   function head(name, size, cls) {
-    if (!model.preview && /^stall\d+$/i.test(name)) {
+    if (!model.preview && window.EnthusiaMarketHistory.marketStallLabel(name)!==name) {
       return h("img", { class: "px " + (cls || ""), width: size, height: size, alt: "", src: new URL("minecraft/vanilla/textures/generated/item/barrel.png", itemAssetBase).href });
     }
     var img = h("img", { class: "px " + (cls || ""), width: size, height: size, alt: "" });

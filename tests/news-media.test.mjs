@@ -6,7 +6,7 @@ import { handleCommunity } from '../functions/lib/community/service.js';
 
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXQAAAAASUVORK5CYII=','base64');
 function fixture(){
-  const sql=new DatabaseSync(':memory:');sql.exec(readFileSync(new URL('../migrations/community/0001_community.sql',import.meta.url),'utf8'));
+  const sql=new DatabaseSync(':memory:');for(const file of ['0001_community.sql','0002_discord_delivery.sql'])sql.exec(readFileSync(new URL('../migrations/community/'+file,import.meta.url),'utf8'));
   const db={prepare(query){let values=[];return {bind(...v){values=v;return this;},async first(){return sql.prepare(query).get(...values)??null;},async run(){return {meta:{changes:Number(sql.prepare(query).run(...values).changes)}};}};},async batch(statements){const results=[];for(const statement of statements)results.push(await statement.run());return results;}};
   const objects=new Map(),bucket={async put(key,data,options){objects.set(key,{data:Uint8Array.from(data),httpMetadata:options.httpMetadata});},async get(key){const value=objects.get(key);return value?{body:new Response(value.data).body,httpMetadata:value.httpMetadata}:null;}};
   const call=(path,method='GET',body,actor=true,origin='https://site.example')=>handleCommunity({request:new Request('https://site.example/api/community/'+path,{method,headers:{origin},...(body?{body}: {})}),params:{path},env:{COMMUNITY_DB:db,COMPETITIONS_MEDIA:bucket}},{editor:async()=>actor?{id:'staff'}:null,identity:async()=>null});

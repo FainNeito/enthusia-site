@@ -7,7 +7,7 @@ import { dispatchAlerts } from '../cloudflare/market-alerts/worker.js';
 import { guildQuestPreview } from '../scripts/guild-quests-preview-data.mjs';
 
 function database(){
-  const sql=new DatabaseSync(':memory:');sql.exec(readFileSync(new URL('../migrations/community/0001_community.sql',import.meta.url),'utf8'));
+  const sql=new DatabaseSync(':memory:');for(const file of ['0001_community.sql','0002_discord_delivery.sql'])sql.exec(readFileSync(new URL('../migrations/community/'+file,import.meta.url),'utf8'));
   const db={prepare(query){let values=[];return {bind(...v){values=v;return this;},async first(){return sql.prepare(query).get(...values)??null;},async all(){return {results:sql.prepare(query).all(...values)};},async run(){const r=sql.prepare(query).run(...values);return {meta:{changes:Number(r.changes)}};}};},async batch(statements){sql.exec('BEGIN');try{const r=[];for(const s of statements)r.push(await s.run());sql.exec('COMMIT');return r;}catch(e){sql.exec('ROLLBACK');throw e;}}};
   return {db,sql};
 }
@@ -287,4 +287,50 @@ test('public player boards remain available without the optional community datab
   const response=await request(null,'players','GET',undefined,{env});
   assert.equal(response.status,200);const result=await response.json();assert.equal(result.items[0].name,'Player');assert.equal(result.limited,true);
   assert.equal((await request(null,'news')).status,503);
+});
+
+test('publishing queues news and changelog once, drafts do not queue, and staff control retries',async()=>{
+  const {db,sql}=database();
+  assert.equal((await request(db,'admin/news','POST',news)).status,200);
+  assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM community_discord_delivery').get().n,0);
+  assert.equal((await request(db,'admin/news','POST',{...news,status:'published',revision:1})).status,200);
+  assert.equal((await request(db,'admin/changelog','POST',{...news,kind:'changelog',slug:'change',status:'published'})).status,200);
+  assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM community_discord_delivery').get().n,2);
+  assert.equal((await request(db,'admin/news','POST',{...news,slug:'news-changelog',category:'Changelog',status:'published'})).status,200);
+  assert.equal(sql.prepare("SELECT channel FROM community_discord_delivery WHERE slug='news-changelog'").get().channel,'changelog');
+  assert.equal((await request(db,'admin/news','POST',{...news,status:'published',revision:2})).status,200);
+  assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM community_discord_delivery').get().n,3);
+  sql.prepare("UPDATE community_discord_delivery SET status='failed' WHERE kind='news'").run();
+  assert.equal((await request(db,'admin/discord-delivery/news/hello','POST',{}, {dependencies:{...dependencies,editor:async()=>null}})).status,403);
+  assert.equal((await request(db,'admin/discord-delivery/news/hello','POST',{}, {headers:{origin:'https://evil.example'}})).status,403);
+  assert.equal((await request(db,'admin/discord-delivery/news/hello','POST',{})).status,200);
+  assert.equal((await (await request(db,'admin/discord-delivery/news/hello')).json()).delivery.status,'pending');
+  assert.equal((await request(db,'admin/discord-delivery/news/hello','POST',{})).status,409);
+  sql.close();
+});
+
+test('Discord worker confirms delivery and does not blindly retry uncertain sends',async()=>{
+  const {dispatchAnnouncements}=await import('../cloudflare/discord-announcements/worker.js');
+  const {db,sql}=database();await request(db,'admin/news','POST',{...news,status:'published'});
+  const env={COMMUNITY_DB:db,COMMUNITY_DISCORD_ENABLED:'true',COMMUNITY_DISCORD_NEWS_WEBHOOK:'https://discord.com/api/webhooks/123456789012345678/fixture-token'};
+  let calls=0;await dispatchAnnouncements(env,async(_url,options)=>{calls++;const payload=JSON.parse(options.body);assert.deepEqual(payload.allowed_mentions,{parse:[]});return Response.json({id:'123456789012345679'});});
+  assert.equal(sql.prepare("SELECT status FROM community_discord_delivery WHERE kind='news'").get().status,'sent');
+  await dispatchAnnouncements(env,async()=>{calls++;throw Error('should not resend');});assert.equal(calls,1);
+  await request(db,'admin/changelog','POST',{...news,kind:'changelog',slug:'change',status:'published'});
+  env.COMMUNITY_DISCORD_CHANGELOG_WEBHOOK=env.COMMUNITY_DISCORD_NEWS_WEBHOOK;
+  await dispatchAnnouncements(env,async()=>{throw Error('network failure');});
+  assert.equal(sql.prepare("SELECT status FROM community_discord_delivery WHERE kind='changelog'").get().status,'uncertain');
+  assert.equal((await request(db,'admin/discord-delivery/changelog/change','POST',{})).status,409);
+  assert.equal((await request(db,'admin/discord-delivery/changelog/change','POST',{confirmUncertain:true})).status,200);
+  assert.equal(sql.prepare("SELECT status FROM community_discord_delivery WHERE kind='changelog'").get().status,'pending');
+  sql.close();
+});
+
+test('a late Discord response cannot overwrite a newer delivery claim',async()=>{
+ const {dispatchAnnouncements}=await import('../cloudflare/discord-announcements/worker.js');
+ const {db,sql}=database();await request(db,'admin/news','POST',{...news,status:'published'});
+ const env={COMMUNITY_DB:db,COMMUNITY_DISCORD_ENABLED:'true',COMMUNITY_DISCORD_NEWS_WEBHOOK:'https://discord.com/api/webhooks/123456789012345678/fixture-token'};
+ await dispatchAnnouncements(env,async()=>{sql.prepare("UPDATE community_discord_delivery SET claim_id='new-claim' WHERE kind='news'").run();return Response.json({id:'123456789012345679'});});
+ const row=sql.prepare("SELECT status,claim_id,message_id FROM community_discord_delivery WHERE kind='news'").get();
+ assert.equal(row.status,'processing');assert.equal(row.claim_id,'new-claim');assert.equal(row.message_id,null);sql.close();
 });

@@ -1,0 +1,11 @@
+name = "enthusia-discord-announcements"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+COMMUNITY_DISCORD_ENABLED = "false"
+
+# Bind COMMUNITY_DB and configure the NEWS and CHANGELOG webhook URLs as secrets.

@@ -13,6 +13,7 @@ import { topFiveByWeek,consecutiveTopWeeks } from './market-history.js';
 import { marketWeekRange } from '../../../public/assets/market/eastern-week.js';
 import { CONTENT_KINDS, SNAPSHOT_KINDS, identifier, validateRecord, decodeRow, publicRecord, projectSnapshot, verifyProducer } from './contracts.js';
 import { uploadNewsMedia, readNewsMedia } from './news-media.js';
+import { queueAnnouncement, deliveryStatus, retryDelivery } from './discord-delivery.js';
 
 const unavailable=()=>json({error:'community_service_unavailable'},503);
 async function identity(request,env){
@@ -69,7 +70,9 @@ async function saveRecord(db,input,actor){
   if(!Number.isInteger(revision)||revision<0)throw new Error('invalid_revision');
   if(await pollOptionsLocked(db,record))return json({error:'poll_options_locked'},409);
   const now=new Date().toISOString();
-  const result=await db.batch(recordStatements(db,record,actor,revision,now));
+  const statements=recordStatements(db,record,actor,revision,now);
+  if(record.status==='published'&&['news','changelog'].includes(record.kind))statements.push(queueAnnouncement(db,record,revision+1,now));
+  const result=await db.batch(statements);
   if(!result[0].meta.changes)return json({error:'revision_conflict'},409);
   return json({...record,revision:revision+1,updatedAt:now});
 }
@@ -192,6 +195,12 @@ async function adminRoute(context, parts, dependencies) {
     return json({editor:true,name:actor.name??'Staff',rank:actor.rank??'Staff'});
   }
   if(parts.length===2 && parts[1]==='news-media' && request.method==='POST') return uploadNewsMedia(request,env,actor);
+  if(parts.length===4 && parts[1]==='discord-delivery' && ['news','changelog'].includes(parts[2])) {
+    const kind=parts[2],slug=identifier(parts[3]);
+    if(request.method==='GET')return json({delivery:await deliveryStatus(db,kind,slug)});
+    const input=JSON.parse(await body(request));
+    return await retryDelivery(db,kind,slug,input.confirmUncertain===true)?json({ok:true}):json({error:'delivery_not_retryable'},409);
+  }
   if (parts.length!==2 || !CONTENT_KINDS.has(parts[1])) return notFound();
   if (request.method==='GET') return recordList(db,parts[1],true);
   const input = JSON.parse(await body(request));

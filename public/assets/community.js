@@ -115,6 +115,9 @@ async function publishingEditor(){
   form.insertBefore(toolbar,body.parentElement);
   body.addEventListener('input',()=>preview.replaceChildren(el('h2',{text:title.value}),markdown(body.value)));
   const feedback=status(form,'');
+  let discordState='';const discordStatus=status(form,''),discordRetry=button('Retry Discord delivery',async()=>{const uncertain=discordState==='uncertain';if(uncertain&&!window.confirm('Discord may already have received this announcement. Check the channel first; retrying could post a duplicate. Retry anyway?'))return;try{await api('admin/discord-delivery/'+type.value+'/'+encodeURIComponent(slug.value),{method:'POST',body:JSON.stringify({confirmUncertain:uncertain})});await refreshDiscord();}catch(error){discordStatus.textContent='Discord: '+error.message;}});discordRetry.hidden=true;form.append(discordRetry);
+  async function refreshDiscord(){if(!['news','changelog'].includes(type.value)||!slug.value){discordStatus.textContent='';discordRetry.hidden=true;return;}try{const {delivery}=await api('admin/discord-delivery/'+type.value+'/'+encodeURIComponent(slug.value));const names={pending:'Queued',processing:'Sending',sent:'Delivered',failed:'Failed',uncertain:'Uncertain — check Discord before taking further action'};discordState=delivery?.status;discordStatus.textContent='Discord: '+(names[discordState]??'Not queued');discordRetry.hidden=!['failed','uncertain'].includes(discordState);}catch{discordStatus.textContent='Discord: status unavailable';discordRetry.hidden=true;}}
+  setInterval(()=>{if(!document.hidden)refreshDiscord();},20000);
   host.append(button('Import historical design drafts',async event=>{
     const importButton=event.currentTarget;
     importButton.disabled=true;
@@ -126,7 +129,7 @@ async function publishingEditor(){
       message.textContent=saved+' historical drafts imported. Review each source and date before publishing.';type.value='timeline';await reload();
     }catch(error){message.textContent=error.message;}finally{importButton.disabled=false;}
   }));
-  function load(item){revision=item.revision??0;slug.value=item.slug??'';title.value=item.title??'';category.value=item.category??'';body.value=item.body??'';date.value=item.date?item.date.slice(0,16):'';image.value=item.image??'';target.value=item.target??'';tags.value=(item.tags??[]).join(', ');options.value=(item.options??[]).join('\n');closing.value=item.closesAt?item.closesAt.slice(0,16):'';verification.value=item.verification??'unverified';feedback.textContent='Revision '+revision+' - '+(item.status??'new');body.dispatchEvent(new Event('input'));}
+  function load(item){revision=item.revision??0;slug.value=item.slug??'';title.value=item.title??'';category.value=item.category??'';body.value=item.body??'';date.value=item.date?item.date.slice(0,16):'';image.value=item.image??'';target.value=item.target??'';tags.value=(item.tags??[]).join(', ');options.value=(item.options??[]).join('\n');closing.value=item.closesAt?item.closesAt.slice(0,16):'';verification.value=item.verification??'unverified';feedback.textContent='Revision '+revision+' - '+(item.status??'new');body.dispatchEvent(new Event('input'));refreshDiscord();}
   async function reload(){const data=await api('admin/'+type.value);list.replaceChildren(button('New record',()=>load({})),...data.items.map(item=>button(item.title+' ['+item.status+']',()=>load(item),'community-row')));}
   async function save(state){
     const buttons=form.querySelectorAll('button');buttons.forEach(b=>b.disabled=true);

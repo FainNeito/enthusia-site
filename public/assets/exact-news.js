@@ -38,6 +38,13 @@ async function reader(){
 async function editor(){
   const title=one('[data-on-change="setTitle"]'),body=one('[data-on-change="setDraft"]'),preview=one('[data-b-blocks="blocks"]'),pin=one('[data-on-change="togPin"]'),ping=one('[data-on-change="togPing"]');
   let category='Announcement',slug='',revision=0,cover='',uploading=0;const message=one('[data-b-class="swap {{sentShow}}"]');message.hidden=true;
+  const delivery=el('p',{class:'tip',role:'status',text:'Discord: publish to queue an announcement.'}),retry=el('button',{type:'button',text:'Retry Discord delivery'});retry.hidden=true;
+  ping?.closest('label')?.replaceWith(delivery,retry);
+  const names={pending:'Queued',processing:'Sending',sent:'Delivered',failed:'Failed',uncertain:'Uncertain — check Discord before taking further action'};
+  let deliveryState='';
+  async function refreshDelivery(){if(!slug)return;try{const data=await api('admin/discord-delivery/news/'+encodeURIComponent(slug));const state=data.delivery?.status;deliveryState=state;delivery.textContent='Discord: '+(names[state]??'Not queued');retry.hidden=!['failed','uncertain'].includes(state);}catch{delivery.textContent='Discord: status unavailable';retry.hidden=true;}}
+  retry.addEventListener('click',async()=>{const uncertain=deliveryState==='uncertain';if(uncertain&&!window.confirm('Discord may already have received this announcement. Check the channel first; retrying could post a duplicate. Retry anyway?'))return;retry.disabled=true;try{await api('admin/discord-delivery/news/'+encodeURIComponent(slug),{method:'POST',body:JSON.stringify({confirmUncertain:uncertain})});await refreshDelivery();}catch(error){delivery.textContent='Discord: '+error.message;}finally{retry.disabled=false;}});
+  setInterval(()=>{if(slug&&!document.hidden)refreshDelivery();},20000);
   function draw(){text('[data-b-text="title"]',title.value);text('[data-b-text="cat"]',category);text('[data-b-text="charCount"]',body.value.length+' characters - Discord would cut a message off at 2,000');setCover(cover);one('[data-news-remove-cover]').hidden=!cover;renderMarkup(preview,body.value);one('[data-b-class="tag {{postTag}}"]')?.setAttribute('class','tag '+tags.get(category));one('[data-b-class="tag tag-gold {{pinShow}}"]')?.toggleAttribute('hidden',!pin.checked);}
   for(const node of document.querySelectorAll('[data-on-click^="pickC"]'))node.addEventListener('click',()=>{category=node.dataset.onClick.slice(5);for(const option of node.parentElement.children)option.setAttribute('aria-pressed',String(option===node));draw();});
   one('[data-on-click="pickCAnnouncement"]').setAttribute('aria-pressed','true');title.addEventListener('input',draw);body.addEventListener('input',draw);pin.addEventListener('change',draw);
@@ -80,7 +87,7 @@ async function editor(){
       const safeSlug=slug||title.value.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'post-'+Date.now();
       const record=await api('admin/news',{method:'POST',body:JSON.stringify({kind:'news',slug:safeSlug,title:title.value,body:body.value,image:cover,category,status:state,revision,date:new Date().toISOString(),pinned:pin.checked})});
       slug=record.slug;revision=record.revision;message.hidden=false;message.textContent=state==='published'?'Published to News.':'Draft saved.';
-      if(ping.checked)message.textContent+=' Discord announcement delivery is not configured.';
+      await refreshDelivery();
       history.replaceState(null,'','?slug='+encodeURIComponent(slug));
     }catch(error){message.hidden=false;message.textContent=error.message;}finally{controls.forEach((node,index)=>node.disabled=disabled[index]);}
   }
@@ -90,7 +97,7 @@ async function editor(){
     const session=await api('admin/session');author({authorName:session.name,authorRank:session.rank});
     const records=await api('admin/news'),requested=new URLSearchParams(location.search).get('slug');
     const record=records.items.find(item=>item.slug===requested)??(document.documentElement.hasAttribute('data-preview-root')?records.items[0]:null);
-    if(record){title.value=record.title;body.value=document.documentElement.hasAttribute('data-preview-root')&&!requested?records.editorDraft??record.body:record.body;category=record.category;slug=record.slug;revision=record.revision;cover=record.image??'';pin.checked=document.documentElement.hasAttribute('data-preview-root')&&!requested||record.pinned===true;ping.checked=document.documentElement.hasAttribute('data-preview-root');for(const option of document.querySelectorAll('[data-on-click^="pickC"]'))option.setAttribute('aria-pressed',String(option.dataset.onClick==='pickC'+category));}
+    if(record){title.value=record.title;body.value=document.documentElement.hasAttribute('data-preview-root')&&!requested?records.editorDraft??record.body:record.body;category=record.category;slug=record.slug;revision=record.revision;cover=record.image??'';pin.checked=document.documentElement.hasAttribute('data-preview-root')&&!requested||record.pinned===true;for(const option of document.querySelectorAll('[data-on-click^="pickC"]'))option.setAttribute('aria-pressed',String(option.dataset.onClick==='pickC'+category));await refreshDelivery();}
     one('[data-news-add-image]').disabled=false;one('[data-news-add-cover]').disabled=false;
   }catch(error){message.hidden=false;message.textContent='Publishing requires an authorized staff account. '+error.message;mediaStatus.textContent='Sign in with an authorized staff account to upload images.';one('[data-on-click="publish"]').disabled=true;if(draft)draft.disabled=true;}
   draw();

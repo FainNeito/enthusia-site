@@ -3,6 +3,11 @@ import { renderMarkup } from './exact-markup.js';
 export function webhookUrl(value){
   try{const url=new URL(value.trim());if(url.protocol!=='https:'||url.hostname!=='discord.com'||url.port||url.username||url.password||url.search||url.hash||!/^\/api\/webhooks\/\d{16,22}\/[A-Za-z0-9._-]+$/.test(url.pathname))return null;url.searchParams.set('wait','true');return url.href;}catch{return null;}
 }
+export function addSelectedImages(current,incoming){
+  if(!Array.isArray(current)||!Array.isArray(incoming)||current.length+incoming.length>9||
+     [...current,...incoming].some(image=>!image||!['image/png','image/jpeg'].includes(image.type)||image.size>8*1024*1024||image.size===0))throw new Error('invalid_images');
+  return [...current,...incoming];
+}
 // Discord allows 4096 characters in an embed description. Longer text is
 // attached in the same message rather than being silently truncated.
 export function buildMessage(title,body,images=[],category='Announcement'){
@@ -31,17 +36,18 @@ export async function sendTest(url,message,fetchImpl=fetch){
 }
 if(typeof document!=='undefined'){
   const get=id=>document.getElementById(id),hook=get('hook'),title=get('title'),body=get('body'),button=get('send'),status=get('status'),cover=get('cover'),category=get('category');
-  let imageUrls=[];
+  let selectedImages=[],imageUrls=[];
   const preview=()=>{get('preview-title').textContent=title.value||'Untitled test';get('preview-title').href=category.value==='Changelog'?'https://enthusia.info/changelog':'https://enthusia.info/news';renderMarkup(get('preview-body'),body.value||'Your announcement will appear here.');get('preview-category').textContent=category.value;get('format-status').textContent=body.value.length>4096?'Long announcement: sent as one message with a text attachment.':'Fits in one Discord embed.';};
   title.addEventListener('input',preview);body.addEventListener('input',preview);category.addEventListener('change',preview);
-  cover.addEventListener('change',()=>{imageUrls.forEach(url=>URL.revokeObjectURL(url));imageUrls=[];const container=get('preview-images'),files=[...cover.files];container.replaceChildren();if(files.length>9||files.some(file=>!['image/png','image/jpeg'].includes(file.type)||file.size===0||file.size>8*1024*1024)){status.textContent='Choose up to 9 PNG or JPEG images, each no larger than 8 MB.';return;}for(const [index,file] of files.entries()){const image=document.createElement('img');imageUrls.push(URL.createObjectURL(file));image.src=imageUrls[index];image.alt=`Selected image ${index+1}`;image.className='cover-preview';container.append(image);}status.textContent=files.length?`${files.length} image(s) selected. Not sent yet.`:'Not sent.';});
+  const drawImages=()=>{imageUrls.forEach(url=>URL.revokeObjectURL(url));imageUrls=[];const container=get('preview-images');container.replaceChildren();get('image-count').textContent=`${selectedImages.length} of 9 pictures selected${selectedImages.length?' — first picture is the cover':''}.`;for(const [index,file] of selectedImages.entries()){const card=document.createElement('figure'),image=document.createElement('img'),caption=document.createElement('figcaption'),remove=document.createElement('button');imageUrls.push(URL.createObjectURL(file));image.src=imageUrls[index];image.alt=`Selected picture ${index+1}`;image.className='cover-preview';caption.textContent=index===0?'Picture 1 · Cover':`Picture ${index+1}`;remove.type='button';remove.className='remove-image';remove.textContent='Remove';remove.setAttribute('aria-label',`Remove picture ${index+1}`);remove.addEventListener('click',()=>{selectedImages=selectedImages.filter((_,i)=>i!==index);drawImages();status.textContent=selectedImages.length?selectedImages.length+' picture(s) selected. Not sent yet.':'No pictures selected. Not sent yet.';});card.append(image,caption,remove);container.append(card);}};
+  cover.addEventListener('change',()=>{const incoming=[...cover.files];cover.value='';if(!incoming.length)return;try{selectedImages=addSelectedImages(selectedImages,incoming);drawImages();status.textContent=`${selectedImages.length} picture(s) selected. Not sent yet.`;}catch{status.textContent='Pictures were not added. Choose up to 9 PNG or JPEG images total, each no larger than 8 MB.';}});
   for(const control of document.querySelectorAll('[data-wrap]'))control.addEventListener('click',()=>{const token=control.dataset.wrap,start=body.selectionStart,end=body.selectionEnd;body.setRangeText(token+body.value.slice(start,end)+token,start,end,'select');body.focus();preview();});
   for(const control of document.querySelectorAll('[data-line]'))control.addEventListener('click',()=>{const at=body.value.lastIndexOf('\n',body.selectionStart-1)+1;body.setRangeText(control.dataset.line,at,at,'end');body.focus();preview();});
   button.addEventListener('click',async()=>{
     const url=webhookUrl(hook.value);if(!url){status.textContent='Enter a valid Discord webhook URL.';return;}
-    let message;try{message=buildMessage(title.value,body.value,[...cover.files],category.value);}catch(error){status.textContent=error.message==='invalid_images'?'Choose up to 9 PNG or JPEG images, each no larger than 8 MB.':'Add a title and announcement before sending.';return;}
+    let message;try{message=buildMessage(title.value,body.value,selectedImages,category.value);}catch(error){status.textContent=error.message==='invalid_images'?'Choose up to 9 PNG or JPEG images, each no larger than 8 MB.':'Add a title and announcement before sending.';return;}
     button.disabled=true;status.textContent='Sending one test message…';
     try{const result=await sendTest(url,message);status.textContent=result.status==='sent'?'Delivered: Discord confirmed one test message.':result.status==='rejected'?'Discord rejected the message. Nothing was confirmed.':'Delivery is uncertain. Check the channel before retrying to avoid a duplicate.';}finally{button.disabled=false;}
   });
-  preview();
+  preview();drawImages();
 }

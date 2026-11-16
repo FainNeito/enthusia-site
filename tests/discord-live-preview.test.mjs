@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {webhookUrl,buildMessage,sendTest} from '../public/assets/discord-live-test.js';
+import {webhookUrl,buildMessage,sendTest,addSelectedImages} from '../public/assets/discord-live-test.js';
 const hook='https://discord.com/api/webhooks/123456789012345678/fixture-token';
 test('webhook validation only allows a direct Discord HTTPS webhook',()=>{
  assert.equal(webhookUrl(hook),hook+'?wait=true');
@@ -20,6 +20,16 @@ test('long announcement and cover use one multipart message without data loss',a
  assert.equal(message.payload.embeds[0].url,'https://enthusia.info/news');
  let calls=0;const result=await sendTest(hook,message,async(_url,options)=>{calls++;assert.ok(options.body instanceof FormData);const payload=JSON.parse(options.body.get('payload_json'));assert.deepEqual(payload.allowed_mentions,{parse:[]});assert.equal(payload.embeds[0].image.url,'attachment://image-1.png');assert.equal(await options.body.get('files[0]').text(),body);assert.equal(await options.body.get('files[2]').text(),'fake-jpeg');return Response.json({id:'123456789012345679'});});
  assert.deepEqual(result,{status:'sent'});assert.equal(calls,1);
+});
+test('adding pictures across separate selections preserves earlier images and rejects invalid additions',async()=>{
+ const first=new Blob(['first'],{type:'image/png'}),second=new Blob(['second'],{type:'image/jpeg'});
+ const initial=addSelectedImages([], [first]),combined=addSelectedImages(initial,[second]);
+ assert.deepEqual(initial,[first]);assert.deepEqual(combined,[first,second]);
+ const result=buildMessage('Test','body',combined);
+ assert.equal(result.payload.embeds.length,2);assert.equal(await result.files[0].blob.text(),'first');assert.equal(await result.files[1].blob.text(),'second');
+ assert.throws(()=>addSelectedImages(combined,[new Blob(['invalid'],{type:'text/plain'})]));
+ assert.equal(combined.length,2);
+ assert.throws(()=>addSelectedImages(combined,Array(8).fill(first)));
 });
 test('uncertain delivery never retries and bad cover is rejected',async()=>{
  const message=buildMessage('Test','body');let calls=0;

@@ -10,7 +10,7 @@ export function buildMessage(title,body,cover=null,category='Announcement'){
   if(!name||name.length>160||!text||text.length>20000||!['Announcement','Changelog','Event'].includes(category))throw new Error('invalid_announcement');
   if(cover&&(!['image/png','image/jpeg'].includes(cover.type)||cover.size>8*1024*1024||cover.size===0))throw new Error('invalid_cover');
   const attached=text.length>4096,files=[];
-  const embed={title:name,description:attached?'The full announcement is attached as a text file.':text,color:0xb3201a,footer:{text:category}};
+  const embed={title:name,url:category==='Changelog'?'https://enthusia.info/changelog':'https://enthusia.info/news',description:attached?'The full announcement is attached as a text file.':text,color:0xb3201a,footer:{text:category}};
   if(attached)files.push({name:'announcement.txt',blob:new Blob([text],{type:'text/plain;charset=utf-8'})});
   if(cover){const name=cover.type==='image/png'?'cover.png':'cover.jpg';files.push({name,blob:cover});embed.image={url:`attachment://${name}`};}
   return {payload:{content:'**[WEBSITE TEST]**',embeds:[embed],allowed_mentions:{parse:[]}},files,attached};
@@ -31,7 +31,7 @@ export async function sendTest(url,message,fetchImpl=fetch){
 if(typeof document!=='undefined'){
   const get=id=>document.getElementById(id),hook=get('hook'),title=get('title'),body=get('body'),button=get('send'),status=get('status'),cover=get('cover'),category=get('category');
   let coverUrl=null;
-  const preview=()=>{get('preview-title').textContent=title.value||'Untitled test';renderMarkup(get('preview-body'),body.value||'Your announcement will appear here.');get('preview-category').textContent=category.value;get('format-status').textContent=body.value.length>4096?'Long announcement: sent as one message with a text attachment.':'Fits in one Discord embed.';};
+  const preview=()=>{get('preview-title').textContent=title.value||'Untitled test';get('preview-title').href=category.value==='Changelog'?'https://enthusia.info/changelog':'https://enthusia.info/news';renderMarkup(get('preview-body'),body.value||'Your announcement will appear here.');get('preview-category').textContent=category.value;get('format-status').textContent=body.value.length>4096?'Long announcement: sent as one message with a text attachment.':'Fits in one Discord embed.';};
   title.addEventListener('input',preview);body.addEventListener('input',preview);category.addEventListener('change',preview);
   cover.addEventListener('change',()=>{if(coverUrl)URL.revokeObjectURL(coverUrl);const image=get('preview-cover'),file=cover.files[0];coverUrl=file&&['image/png','image/jpeg'].includes(file.type)&&file.size<=8*1024*1024?URL.createObjectURL(file):null;image.hidden=!coverUrl;if(coverUrl)image.src=coverUrl;else image.removeAttribute('src');});
   for(const control of document.querySelectorAll('[data-wrap]'))control.addEventListener('click',()=>{const token=control.dataset.wrap,start=body.selectionStart,end=body.selectionEnd;body.setRangeText(token+body.value.slice(start,end)+token,start,end,'select');body.focus();preview();});

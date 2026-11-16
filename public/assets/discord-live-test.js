@@ -1,40 +1,46 @@
+import { renderMarkup } from './exact-markup.js';
+
 export function webhookUrl(value){
   try{const url=new URL(value.trim());if(url.protocol!=='https:'||url.hostname!=='discord.com'||url.port||url.username||url.password||url.search||url.hash||!/^\/api\/webhooks\/\d{16,22}\/[A-Za-z0-9._-]+$/.test(url.pathname))return null;url.searchParams.set('wait','true');return url.href;}catch{return null;}
 }
-export function splitMessage(title,body){
-  const text=`[WEBSITE TEST] ${title.trim()}\n\n${body.trim()}`;
-  const parts=[];let part='';for(const character of text){if(part.length+character.length>1800){parts.push(part);part='';}part+=character;}if(part)parts.push(part);
-  return parts.map((value,index)=>parts.length===1?value:`[Part ${index+1}/${parts.length}]\n${value}`);
+// Discord allows 4096 characters in an embed description. Longer text is
+// attached in the same message rather than being silently truncated.
+export function buildMessage(title,body,cover=null,category='Announcement'){
+  const name=title.trim(),text=body.trim();
+  if(!name||name.length>160||!text||text.length>20000||!['Announcement','Changelog','Event'].includes(category))throw new Error('invalid_announcement');
+  if(cover&&(!['image/png','image/jpeg'].includes(cover.type)||cover.size>8*1024*1024||cover.size===0))throw new Error('invalid_cover');
+  const attached=text.length>4096,files=[];
+  const embed={title:name,description:attached?'The full announcement is attached as a text file.':text,color:0xb3201a,footer:{text:category}};
+  if(attached)files.push({name:'announcement.txt',blob:new Blob([text],{type:'text/plain;charset=utf-8'})});
+  if(cover){const name=cover.type==='image/png'?'cover.png':'cover.jpg';files.push({name,blob:cover});embed.image={url:`attachment://${name}`};}
+  return {payload:{content:'**[WEBSITE TEST]**',embeds:[embed],allowed_mentions:{parse:[]}},files,attached};
 }
-export async function sendTest(url,messages,fetchImpl=fetch,onProgress=()=>{}){
-  let confirmed=0;
-  for(const content of messages){
+export async function sendTest(url,message,fetchImpl=fetch){
+  let requestBody,headers;
+  if(message.files.length){requestBody=new FormData();requestBody.append('payload_json',JSON.stringify(message.payload));message.files.forEach((file,index)=>requestBody.append(`files[${index}]`,file.blob,file.name));}
+  else{requestBody=JSON.stringify(message.payload);headers={'Content-Type':'application/json'};}
+  for(let attempt=0;attempt<3;attempt++){
     let response;
-    for(let attempt=0;attempt<3;attempt++){
-      try{response=await fetchImpl(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content,allowed_mentions:{parse:[]}}),redirect:'error',signal:AbortSignal.timeout(15000)});}catch{return {status:'uncertain',confirmed};}
-      if(response.status!==429)break;
-      const header=response.headers.get('retry-after');
-      if(header===null||!header.trim())return {status:'rejected',confirmed};
-      const delay=Number(header);
-      if(!Number.isFinite(delay)||delay<0||delay>30||attempt===2)return {status:'rejected',confirmed};
-      await new Promise(resolve=>setTimeout(resolve,Math.ceil(delay*1000)));
-    }
-    if(!response.ok)return {status:response.status>=400&&response.status<500?'rejected':'uncertain',confirmed};
-    try{const result=await response.json();if(!/^\d{16,22}$/.test(result.id??''))return {status:'uncertain',confirmed};}catch{return {status:'uncertain',confirmed};}
-    confirmed++;onProgress(confirmed,messages.length);
+    try{response=await fetchImpl(url,{method:'POST',...(headers?{headers}:{}),body:requestBody,redirect:'error',signal:AbortSignal.timeout(15000)});}catch{return {status:'uncertain'};}
+    if(response.status===429){const header=response.headers.get('retry-after');if(header===null||!header.trim())return {status:'rejected'};const delay=Number(header);if(!Number.isFinite(delay)||delay<0||delay>30||attempt===2)return {status:'rejected'};await new Promise(resolve=>setTimeout(resolve,Math.ceil(delay*1000)));continue;}
+    if(!response.ok)return {status:response.status>=400&&response.status<500?'rejected':'uncertain'};
+    try{const result=await response.json();return {status:/^\d{16,22}$/.test(result.id??'')?'sent':'uncertain'};}catch{return {status:'uncertain'};}
   }
-  return {status:'sent',confirmed};
+  return {status:'rejected'};
 }
 if(typeof document!=='undefined'){
-  const get=id=>document.getElementById(id),hook=get('hook'),title=get('title'),body=get('body'),button=get('send'),status=get('status');
-  const preview=()=>{get('preview-title').textContent=title.value||'Untitled test';get('preview-body').textContent=body.value||'Your announcement will appear here.';};
-  title.addEventListener('input',preview);body.addEventListener('input',preview);
+  const get=id=>document.getElementById(id),hook=get('hook'),title=get('title'),body=get('body'),button=get('send'),status=get('status'),cover=get('cover'),category=get('category');
+  let coverUrl=null;
+  const preview=()=>{get('preview-title').textContent=title.value||'Untitled test';renderMarkup(get('preview-body'),body.value||'Your announcement will appear here.');get('preview-category').textContent=category.value;get('format-status').textContent=body.value.length>4096?'Long announcement: sent as one message with a text attachment.':'Fits in one Discord embed.';};
+  title.addEventListener('input',preview);body.addEventListener('input',preview);category.addEventListener('change',preview);
+  cover.addEventListener('change',()=>{if(coverUrl)URL.revokeObjectURL(coverUrl);const image=get('preview-cover'),file=cover.files[0];coverUrl=file&&['image/png','image/jpeg'].includes(file.type)&&file.size<=8*1024*1024?URL.createObjectURL(file):null;image.hidden=!coverUrl;if(coverUrl)image.src=coverUrl;else image.removeAttribute('src');});
+  for(const control of document.querySelectorAll('[data-wrap]'))control.addEventListener('click',()=>{const token=control.dataset.wrap,start=body.selectionStart,end=body.selectionEnd;body.setRangeText(token+body.value.slice(start,end)+token,start,end,'select');body.focus();preview();});
+  for(const control of document.querySelectorAll('[data-line]'))control.addEventListener('click',()=>{const at=body.value.lastIndexOf('\n',body.selectionStart-1)+1;body.setRangeText(control.dataset.line,at,at,'end');body.focus();preview();});
   button.addEventListener('click',async()=>{
     const url=webhookUrl(hook.value);if(!url){status.textContent='Enter a valid Discord webhook URL.';return;}
-    if(!title.value.trim()||!body.value.trim()){status.textContent='Add a title and announcement before sending.';return;}
-    const messages=splitMessage(title.value,body.value);button.disabled=true;status.textContent=`Sending ${messages.length} test message(s)…`;
-    try{const result=await sendTest(url,messages,fetch,(count,total)=>{status.textContent=`Discord confirmed ${count} of ${total} message(s).`;});
-      status.textContent=result.status==='sent'?`Delivered: Discord confirmed ${result.confirmed} test message(s).`:`${result.confirmed} of ${messages.length} confirmed. ${result.status==='rejected'?'Discord rejected the next part.':'Delivery of the next part is uncertain.'} Check the channel before retrying; previously sent parts would be duplicated.`;
-    }finally{button.disabled=false;}
+    let message;try{message=buildMessage(title.value,body.value,cover.files[0]??null,category.value);}catch(error){status.textContent=error.message==='invalid_cover'?'Choose a PNG or JPEG cover no larger than 8 MB.':'Add a title and announcement before sending.';return;}
+    button.disabled=true;status.textContent='Sending one test message…';
+    try{const result=await sendTest(url,message);status.textContent=result.status==='sent'?'Delivered: Discord confirmed one test message.':result.status==='rejected'?'Discord rejected the message. Nothing was confirmed.':'Delivery is uncertain. Check the channel before retrying to avoid a duplicate.';}finally{button.disabled=false;}
   });
+  preview();
 }

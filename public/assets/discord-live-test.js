@@ -34,7 +34,7 @@ export async function sendTest(url,message,fetchImpl=fetch){
   }
   return {status:'rejected'};
 }
-if(typeof document!=='undefined'){
+if(typeof document!=='undefined'&&document.getElementById('category')&&document.getElementById('cover')){
   const get=id=>document.getElementById(id),hook=get('hook'),title=get('title'),body=get('body'),button=get('send'),status=get('status'),cover=get('cover'),category=get('category');
   let selectedImages=[],imageUrls=[];
   const preview=()=>{get('preview-title').textContent=title.value||'Untitled test';get('preview-title').href=category.value==='Changelog'?'https://enthusia.info/changelog':'https://enthusia.info/news';renderMarkup(get('preview-body'),body.value||'Your announcement will appear here.');get('preview-category').textContent=category.value;get('format-status').textContent=body.value.length>4096?'Long announcement: sent as one message with a text attachment.':'Fits in one Discord embed.';};

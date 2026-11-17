@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildSummaryTest} from '../public/assets/announcement-summary-test.js';
 import {sendTest} from '../public/assets/discord-live-test.js';
+import {execFileSync} from 'node:child_process';
+
+test('webhook helpers can be imported on a different preview page',()=>{
+  const source="globalThis.document={getElementById:()=>null}; await import('./public/assets/discord-live-test.js')";
+  assert.doesNotThrow(()=>execFileSync(process.execPath,['--input-type=module','-e',source],{cwd:process.cwd()}));
+});
 
 test('summary sends one embed and one cover without enabling mentions',async()=>{
   const cover=new Blob(['cover'],{type:'image/png'}), message=buildSummaryTest('Update','Hello @everyone',cover);

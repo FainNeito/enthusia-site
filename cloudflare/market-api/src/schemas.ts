@@ -121,7 +121,7 @@ export const stallSchema = z.object({
       kind: z.string().min(1).max(32),
       source: z.string().min(1).max(32).nullable().optional(),
       includesOuterLayer: z.boolean().nullable().optional(),
-      url: publicHeadUrlSchema.nullish(),
+      url: z.string().max(2048).nullish(),
       banner: bannerDesignSchema.nullable().optional(),
     }).strict(),
   }).strict(),
